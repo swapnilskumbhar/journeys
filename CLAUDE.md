@@ -19,6 +19,10 @@ launch pad → Mars.
 - Build (run before calling any change done — the dev server masks
   duplicate-identifier errors as a blank page with no console output):
   `& "C:\Program Files\nodejs\node.exe" node_modules/vite/bin/vite.js build`
+- Engine math smoke test (pure modules, no browser):
+  `& "C:\Program Files\nodejs\node.exe" scripts/smoke.mjs` — extend it whenever
+  axis or rebase behaviour changes; these two are the modules most likely to be
+  wrong in ways that only show up 12 decades into a journey.
 
 ## Map
 
