@@ -29,13 +29,20 @@ export function createRibbon({ container, journey, onSeek }) {
   const value = el.querySelector('.ribbon-value');
   const ticksEl = el.querySelector('.ribbon-ticks');
 
-  journey.beats.forEach((beat) => {
+  journey.beats.forEach((beat, i) => {
     const tick = document.createElement('button');
     tick.className = 'ribbon-tick';
     tick.style.left = `${beat.u * 100}%`;
     tick.title = beat.heading;
     tick.setAttribute('aria-label', `Jump to ${beat.heading}`);
-    tick.addEventListener('click', () => onSeek(beat.u));
+    // Seek just PAST the beat, not exactly onto it. The active beat is the last
+    // one at or behind u, so landing precisely on the boundary (or a rounded
+    // pixel before it) selects the PREVIOUS beat — clicking "Farming" showed
+    // "Out of Africa". A fraction of the gap to the next beat lands cleanly
+    // inside the one that was clicked.
+    const next = journey.beats[i + 1]?.u ?? 1;
+    const target = Math.min(1, beat.u + (next - beat.u) * 0.2);
+    tick.addEventListener('click', () => onSeek(target));
     ticksEl.appendChild(tick);
   });
 

@@ -48,12 +48,16 @@ export function makeStreamer({ scene, THREE, rebase, kit, hysteresis = 0.04 }) {
       sync.layers = layers;
     },
     sync,
-    update(u, dt) {
+    // `t` is the player's accumulated elapsed time, for ambient motion that
+    // must not freeze when the reader stops scrolling (twinkle, drift, orbit).
+    // It is accumulated from dt rather than read from the wall clock, so under
+    // the exporter's fixed-step virtual clock it stays reproducible.
+    update(u, dt, t) {
       for (const { layer, handle } of mounted.values()) {
         if (!handle.update) continue;
         const span = layer.to - layer.from || 1;
         const local = Math.max(0, Math.min(1, (u - layer.from) / span));
-        handle.update({ u, local, rebase, dt });
+        handle.update({ u, local, rebase, dt, t });
       }
     },
     get size() {

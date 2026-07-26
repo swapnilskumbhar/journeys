@@ -86,7 +86,10 @@ body {
   width: min(var(--panel-w), 42vw);
   padding: 1.6rem 1.8rem;
   border-radius: 1rem;
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  /* Opaque enough to stay readable against a fully blown-out frame — the
+     journey passes through several near-white epochs, and a 72% panel went
+     grey and unreadable over the primordial fireball. */
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(18px);
   border: 1px solid rgb(255 255 255 / 0.08);
   border-left: 2px solid var(--accent);

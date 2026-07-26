@@ -28,7 +28,19 @@
 // decades — because that is about what a single float32 depth range tolerates
 // even with a logarithmic depth buffer.
 export const MIN_UNITS = 1e-3;
-export const MAX_UNITS = 1e5;
+// ~20× the frame. Generous enough for background shells (a starfield sits at
+// 4× and must stay solid) and tight enough that an object the scale law has
+// left behind actually disappears. The old 1e5 was chosen for depth-buffer
+// reasons and was far too permissive in practice: a body 27× the frame is not
+// "visible", it is a flat wash of colour over the entire screen — which is
+// exactly how the young Sun rendered before this was tightened.
+export const MAX_UNITS = 150;
+
+// Nominal frame width in world units. The camera sits ~6 units out with a 55°
+// FOV, so a 4-unit object comfortably fills the frame. `scaleAt` laws and
+// `frameMeters()` both key off this, which is what makes "one metre value =
+// one frame" a stable contract across journeys.
+export const FRAME_UNITS = 4;
 
 export function makeRebaser({ minUnits = MIN_UNITS, maxUnits = MAX_UNITS } = {}) {
   let metersPerUnit = 1;
@@ -46,6 +58,13 @@ export function makeRebaser({ minUnits = MIN_UNITS, maxUnits = MAX_UNITS } = {})
 
     // metres → world units. The only sanctioned way to place anything.
     toWorld: (meters) => meters / metersPerUnit,
+
+    // Roughly how many metres the frame spans right now. Layers that ARE the
+    // visible field (a plasma soup, a star field, the cosmic web) size
+    // themselves off this rather than off a constant, so they keep filling the
+    // frame as the scale law sweeps through decades — which is what stops them
+    // needing hardcoded sizes and keeps rule 1 honest.
+    frameMeters: () => metersPerUnit * FRAME_UNITS,
 
     // world units → metres, for readouts and hit-testing.
     toMeters: (units) => units * metersPerUnit,

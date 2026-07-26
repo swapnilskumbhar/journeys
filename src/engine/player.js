@@ -106,28 +106,45 @@ export function mountJourney(journey, container) {
   // --- frame ---------------------------------------------------------------
   let u = 0;
   let uTarget = 0;
+  let elapsed = 0;
 
   const stopTick = stage.onTick((dt) => {
+    elapsed += dt;
     // The exporter drives the axis directly for deterministic frames; a live
     // page reads scroll. One scalar either way — this is why journey renders
     // are simpler to make deterministic than howitworks' discrete steps.
     if (window.__u !== undefined) {
       u = uTarget = clamp01(window.__u);
     } else {
-      uTarget = clamp01(window.scrollY / scrollRange());
+      // Treat "within a couple of pixels of the bottom" as exactly 1. Browser
+      // scroll positions are fractional and rounding-prone (DPI scaling, elastic
+      // overscroll, smooth-scroll animation), and a journey's final beat sits at
+      // u=1 — one pixel short and it is unreachable.
+      const range = scrollRange();
+      const y = window.scrollY;
+      uTarget = y >= range - 2 ? 1 : clamp01(y / range);
       // light damping so a flicked trackpad reads as travel, not a jump
       u += (uTarget - u) * Math.min(1, dt * 9);
+      // Snap when close. An exponential approach never actually arrives, which
+      // left u at 0.9994 at the bottom of the page — so the final beat, sitting
+      // at exactly 1.0, could not be reached by scrolling at all.
+      // 1e-3 of the axis is ~0.06 viewport-heights of scroll here: far too small
+      // to see as a jump, and comfortably wider than the residual error left
+      // after the ramp has visually settled.
+      if (Math.abs(uTarget - u) < 1e-3) u = uTarget;
     }
 
     rebase.setScale(journey.scaleAt(u, journey.axis));
     streamer.sync(u);
-    journey.camera?.(u, stage.camera, ctx);
-    streamer.update(u, dt);
+    journey.camera?.(u, stage.camera, { ...ctx, t: elapsed });
+    streamer.update(u, dt, elapsed);
 
     const i = beatIndexAt(u);
     ribbon.update(u, i);
     showBeat(i);
-    heroEl.style.opacity = String(Math.max(0, 1 - u * 40));
+    // Clear the hero before the first beat panel appears — the two occupy
+    // overlapping space and a lingering title reads as a rendering fault.
+    heroEl.style.opacity = String(Math.max(0, 1 - u * 150));
   });
 
   window.__journey = { stage, journey, rebase, streamer, seek: (v) => { window.__u = v; } };

@@ -1,4 +1,5 @@
 import { makeAxis, clamp01 } from './axis.js';
+import { FRAME_UNITS } from './rebase.js';
 
 // A journey is data. That is the whole architectural bet: at 100+ journeys,
 // hand-written Three.js per topic does not scale, so content declares WHAT
@@ -44,7 +45,7 @@ export function defineJourney(def) {
   // a few world units. On a log axis this makes travel feel like a constant
   // rate of zoom, which is exactly the powers-of-ten sensation these journeys
   // are for. Override for journeys whose axis is time, not size.
-  const scaleAt = def.scaleAt ?? ((u) => axis.toValue(u) / 4);
+  const scaleAt = def.scaleAt ?? ((u) => axis.toValue(u) / FRAME_UNITS);
 
   return { ...def, axis, beats, layers, scaleAt, length: def.length ?? Math.max(8, beats.length * 1.5) };
 }

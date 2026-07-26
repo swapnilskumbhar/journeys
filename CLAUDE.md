@@ -19,10 +19,22 @@ launch pad → Mars.
 - Build (run before calling any change done — the dev server masks
   duplicate-identifier errors as a blank page with no console output):
   `& "C:\Program Files\nodejs\node.exe" node_modules/vite/bin/vite.js build`
-- Engine math smoke test (pure modules, no browser):
-  `& "C:\Program Files\nodejs\node.exe" scripts/smoke.mjs` — extend it whenever
-  axis or rebase behaviour changes; these two are the modules most likely to be
-  wrong in ways that only show up 12 decades into a journey.
+- Engine + axis math (pure modules, no browser) — must print `SMOKE PASS`:
+  `& "C:\Program Files\nodejs\node.exe" scripts/smoke.mjs`. Covers axis
+  round-tripping, segment seams, monotonicity, the rebaser band, and **beat
+  pacing** (no two beats closer than 0.3% of the axis, no gap wider than 11%).
+  Extend it whenever axis or rebase behaviour changes; these are the modules
+  most likely to be wrong in ways that only show up 12 decades into a journey.
+- Screenshots — the only reliable way to SEE a journey (the Browser pane is
+  compositor-throttled and its screenshots time out):
+  `node scripts/shots.mjs <id> [outDir] [port] [--at=0.1,0.5] [--sheet]`.
+  Default is one shot per beat, sampled mid-beat; `--sheet` emits
+  `contact-sheet.png` (one image = whole-journey review).
+- Real scroll path — `node scripts/scroll-check.mjs`. Everything in shots.mjs
+  drives `window.__u` directly, which bypasses scroll entirely; this is the only
+  check that exercises document scroll → u, the wheel not being eaten by the
+  canvas overlay, and ribbon tick navigation. Run it after touching player.js,
+  ribbon.js, or anything about layout.
 
 ## Map
 
@@ -36,9 +48,10 @@ launch pad → Mars.
 | src/engine/journey.js | `defineJourney` + registry glob (eager meta.js, lazy index.js) |
 | src/engine/player.js | scroll → u → camera + layers + one swapped copy panel |
 | src/engine/ribbon.js | left→right progress HUD, doubles as navigation |
+| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet |
 | src/kit/ | procedural toolkit ported from howitworks (shared by copy) |
-| src/journeys/\<id\>/ | meta.js (eager card) · index.js (the journey) · layers |
-| scripts/ | video export / narration / review tooling (ported, **needs retargeting**) |
+| src/journeys/\<id\>/ | meta.js · axis-def.js · beats.js · layers.js · curve.js · index.js |
+| scripts/ | smoke.mjs · shots.mjs · scroll-check.mjs · video export (**export-video/narration still need retargeting to `__u`**) |
 
 ## Rules
 
@@ -76,12 +89,37 @@ launch pad → Mars.
    must have been LOOKED AT before calling anything done. Framing, occlusion and
    copy-vs-visual truth are judged by eyes.
 
-## Status (2026-07-26)
+## Status (2026-07-27)
 
-Scaffold only — engine primitives written, **nothing rendered yet**. `axis`,
-`rebase`, `stream`, `stage`, `journey`, `player`, `ribbon` compile and the build
-is clean, but no journey exists, so none of it has been exercised against real
-content. Expect the first journey (Big Bang) to reshape the player and prove or
-break the layer contract. Ported `scripts/` still target howitworks' step model
-(`__hiw`, discrete step indices) and will not run here until retargeted to the
-`__u` scalar — which should be simpler, not harder.
+**`big-bang` ships** — 38 beats, Planck epoch to today, its own lazy chunk.
+The engine has now been exercised against real content and held up; four
+archetypes cover the whole journey with no bespoke Three.js in the journey
+folder.
+
+Things the first journey taught, which the next one should not relearn:
+
+- **Exposure is the hard part, not geometry.** Additive points with 1/z
+  attenuation and a zero bloom threshold turn any dense field into a white
+  rectangle. Point size is clamped in the shader (`uMaxSize`) and bloom runs a
+  0.42 threshold. Every dense field also carries an explicit opacity multiplier
+  well below 1.
+- **`rebase.weight()` is not optional.** Any layer sized in fixed metres must
+  fade on the band, or the scale law leaves it behind as a full-frame wash
+  rather than removing it. All four archetypes do this by default
+  (`respectBand`). `MAX_UNITS` is 150 — about 20× the frame — for this reason.
+- **Pace the scale law against the BEATS, not the axis.** Several beats
+  originally spent their entire scroll travelling away from their own subject.
+  Hold the frame across a beat, then move in the gap after it.
+- **"Physically where the observer was" ≠ legible.** The camera used to dive
+  inside the primordial plasma, which is true and renders as featureless white.
+  The camera now stays 4.5–7 units out for the whole journey; whether we are
+  "inside" something is decided by that layer's radius, not by moving.
+- **Verify the real scroll path separately.** `shots.mjs` drives `__u` and will
+  happily pass while scrolling is broken; `scroll-check.mjs` caught an
+  unreachable final beat and off-by-one ribbon navigation.
+
+Still to do: `export-video.mjs` / `make-narration.mjs` are the howitworks
+originals and still target `__hiw` + discrete step indices. Retargeting them to
+the `__u` scalar should be simpler than the original, not harder. Nothing is
+deployed yet — no host, no domain, no OG images (`/og/<id>.png` is referenced by
+the prerender step but not generated).
