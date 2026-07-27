@@ -28,6 +28,7 @@ const vertex = /* glsl */ `
   varying vec3 vPos;
   varying vec3 vN;
   varying float vDist;
+  varying float vH;    // height renormalised to 0..1, for the fissure band
 
   float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -45,11 +46,14 @@ const vertex = /* glsl */ `
     for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.07; a *= 0.5; }
     return s;
   }
+  float relief(vec2 xz) {
+    return fbm(xz * uFreq + uSeed * 7.31);
+  }
   float height(vec2 xz) {
     float d = length(xz);
     // level plain at the centre, easing out to full relief
     float lift = smoothstep(uFlatR * 0.35, uFlatR, d);
-    return (fbm(xz * uFreq + uSeed * 7.31) - 0.5) * 2.0 * uAmp * lift;
+    return (relief(xz) - 0.5) * 2.0 * uAmp * lift;
   }
 
   void main() {
@@ -64,6 +68,7 @@ const vertex = /* glsl */ `
 
     vPos = p;
     vDist = length(p.xz);
+    vH = relief(p.xz);
 
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
@@ -76,6 +81,7 @@ const fragment = /* glsl */ `
   #include <logdepthbuf_pars_fragment>
 
   uniform vec3  uLightDir;
+  uniform vec3  uLightCol; // sunlight tint — warm on land, blue-green below water
   uniform vec3  uHaze;     // horizon / rim colour
   uniform float uRadiusM;  // metres, for pattern scales
   uniform float uFlatR;
@@ -85,11 +91,16 @@ const fragment = /* glsl */ `
   uniform float uUrban;    // built ground at the centre
   uniform vec3  uRock;     // bare substrate
   uniform vec3  uDry;      // uncovered ground (savanna gold, seabed grey…)
+  uniform float uLava;     // glowing fissures — flood basalt
+  uniform vec3  uLavaHot;
+  uniform float uCoarse;   // metres: broad mottling wavelength
+  uniform float uFine;     // metres: close-up grain wavelength
   uniform float uOpacity;
 
   varying vec3 vPos;
   varying vec3 vN;
   varying float vDist;
+  varying float vH;
 
   float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -108,14 +119,21 @@ const fragment = /* glsl */ `
 
     vec2 wm = vPos.xz * uRadiusM; // metres — pattern scales stay physical
 
-    // ground cover: dry gold grass mottled toward green by uCover
+    // Ground cover: dry gold grass mottled toward green by uCover.
     // (NB "patch" is a GLSL reserved word)
-    float mottle = vnoise(wm / 420.0);
+    //
+    // The two wavelengths used to be hardcoded at 420 m and 90 m, which is
+    // right for a 30 km savanna and catastrophically wrong for anything small:
+    // across a 60 m seafloor those noise fields vary by a fifth of one cell, so
+    // the whole ground rendered as a single flat colour. Deriving them from
+    // featureMeters keeps every existing surface identical and makes the
+    // archetype work at 60 m as well as at 30 km.
+    float mottle = vnoise(wm / uCoarse);
     vec3 rock  = uRock;
     vec3 dry   = uDry;
     vec3 green = vec3(0.135, 0.19, 0.075);
     vec3 grass = mix(dry, green, uCover * (0.35 + 0.65 * mottle));
-    vec3 col = mix(rock, grass, 0.45 + 0.55 * vnoise(wm / 90.0));
+    vec3 col = mix(rock, grass, 0.45 + 0.55 * vnoise(wm / uFine));
 
     // fields: a ring of ~130 m parcels around the settled centre. Only some
     // cells are farmed, so the patchwork has gaps like real land division.
@@ -133,9 +151,23 @@ const fragment = /* glsl */ `
     float urbanZone = smoothstep(uFlatR * 0.9, uFlatR * 0.45, vDist);
     col = mix(col, vec3(0.155, 0.14, 0.12), uUrban * urbanZone);
 
-    // low warm sun + cool ambient
+    // Flood basalt: glowing fissures following the contours. Same narrow-band
+    // trick as planet.js — fbm mostly lives near 0.5, so a wide threshold makes
+    // "crack" true nearly everywhere and the ground becomes a flat orange sheet
+    // with no crust at all.
+    float crack = smoothstep(0.085, 0.014, abs(vH - 0.5)) * (0.45 + 0.55 * vnoise(wm / uFine));
+    vec3 lavaCol = mix(vec3(0.075, 0.028, 0.020), uLavaHot, crack);
+    col = mix(col, lavaCol, uLava);
+
+    // low sun + cool ambient. The tint was hardcoded warm, which is right for
+    // a savanna and wrong for a seabed: water absorbs red within a few metres,
+    // so warm light thirty metres down made the Ediacaran read as a prairie at
+    // dusk. Any scene that is not lit by open sunlight needs this.
     float nl = max(0.0, dot(normalize(vN), normalize(uLightDir)));
-    vec3 lit = col * (vec3(1.0, 0.85, 0.66) * nl * uSun * 1.9 + vec3(0.05, 0.06, 0.09) + 0.09 * uSun);
+    vec3 lit = col * (uLightCol * nl * uSun * 1.9 + vec3(0.05, 0.06, 0.09) + 0.09 * uSun);
+
+    // molten rock emits; it is not merely lit
+    lit += lavaCol * uLava * crack * 1.15;
 
     // Rim melts into haze, then into nothing. The colour fade alone is not
     // enough: the mesh is a SQUARE plane, and during the pull-back to orbit
@@ -156,7 +188,14 @@ export function terrain({
   haze = 0x10121e,
   rock = 0x362e24,
   dry = 0x4d4120,
+  lavaHot = 0xff6b12,
+  // Colour-pattern wavelengths in metres. Default to fractions of featureMeters
+  // so they follow the relief at any size; override only to decouple the two.
+  coarseMeters = null,
+  fineMeters = null,
+  flattenMeters = 600,
   lightDir = [0.7, 0.3, 0.5],
+  lightColor = 0xffd9a8,
   surface = () => ({}),
   opacity = () => 1,
   segments = 240,
@@ -164,12 +203,17 @@ export function terrain({
   const uniforms = {
     uAmp: { value: ampMeters / radiusMeters },
     uFreq: { value: radiusMeters / featureMeters },
-    uFlatR: { value: 600 / radiusMeters },
+    uFlatR: { value: flattenMeters / radiusMeters },
     uSeed: { value: seed },
     uLightDir: { value: new THREE.Vector3(...lightDir).normalize() },
+    uLightCol: { value: new THREE.Color(lightColor) },
     uHaze: { value: new THREE.Color(haze) },
     uRock: { value: new THREE.Color(rock) },
     uDry: { value: new THREE.Color(dry) },
+    uLavaHot: { value: new THREE.Color(lavaHot) },
+    uLava: { value: 0 },
+    uCoarse: { value: coarseMeters ?? featureMeters * 0.32 },
+    uFine: { value: fineMeters ?? featureMeters * 0.07 },
     uRadiusM: { value: radiusMeters },
     uSun: { value: 0.7 },
     uCover: { value: 0.5 },
@@ -207,6 +251,7 @@ export function terrain({
       if (s.cover !== undefined) uniforms.uCover.value = s.cover;
       if (s.fields !== undefined) uniforms.uFields.value = s.fields;
       if (s.urban !== undefined) uniforms.uUrban.value = s.urban;
+      if (s.lava !== undefined) uniforms.uLava.value = s.lava;
       if (s.flatten !== undefined) uniforms.uFlatR.value = s.flatten / radiusMeters;
 
       const o = opacity({ u, local, rebase });

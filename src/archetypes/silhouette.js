@@ -294,11 +294,13 @@ const vertex = /* glsl */ `
   uniform float uVariants;
   uniform float uTime;
   uniform float uSway;
+  uniform float uNearFade;  // metres — dissolve instances closer than this
 
   attribute float aVariant;
   attribute float aSeed;
 
   varying vec2 vUv;
+  varying float vNear;
 
   void main() {
     vec3 iPos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
@@ -307,6 +309,17 @@ const vertex = /* glsl */ `
 
     // cylindrical billboard: yaw toward the camera, never pitch — these things
     // stand on ground and must not tip toward an overhead viewer
+    // centreClear only keeps instances away from the ORIGIN, and the camera is
+    // neither at the origin nor stationary — it sits several units out and the
+    // copy panel pans it sideways. So a scatter that looks well spaced can
+    // still put one instance three metres off the lens, where it fills a
+    // quarter of the frame as a cropped black mass. Fading by true distance to
+    // the camera is the only thing that fixes it for every framing.
+    // (NB no backticks in this file's shader comments — the GLSL lives in a JS
+    // template literal, and one backtick ends it three hundred lines early.)
+    float camDist = length(uCamLocal - iPos);
+    vNear = uNearFade > 0.0 ? smoothstep(uNearFade * 0.55, uNearFade, camDist) : 1.0;
+
     vec3 toCam = uCamLocal - iPos;
     toCam.y = 0.0;
     float len = length(toCam);
@@ -339,12 +352,14 @@ const fragment = /* glsl */ `
   uniform float uOpacity;
 
   varying vec2 vUv;
+  varying float vNear;
 
   void main() {
     #include <logdepthbuf_fragment>
 
     float a = texture2D(uMap, vUv).a;
     if (a < uCut) discard;
+    if (vNear <= 0.004) discard;
 
     // A hair of light bleeding around the edge. Without it a silhouette is a
     // dead hole in the frame; with it the form reads as a body with light
@@ -352,7 +367,7 @@ const fragment = /* glsl */ `
     float core = smoothstep(uCut, uCut + 0.45, a);
     vec3 col = mix(uRim, uColor, core);
 
-    gl_FragColor = vec4(col, uOpacity);
+    gl_FragColor = vec4(col, uOpacity * vNear);
   }
 `;
 
@@ -365,6 +380,7 @@ export function silhouette({
   heightMeters = [1, 2.4],  // base → tallest
   aspect = 1,               // width/height multiplier of the drawn form
   centreClear = 0,          // keep a clear radius at the origin
+  nearFadeMeters = 0,       // dissolve instances that come this close to the camera
   color = 0x05060a,
   rim = 0x2a3450,
   cut = 0.34,
@@ -383,6 +399,7 @@ export function silhouette({
     uVariants: { value: variants },
     uTime: { value: 0 },
     uSway: { value: sway },
+    uNearFade: { value: nearFadeMeters },
     uColor: { value: new THREE.Color(color) },
     uRim: { value: new THREE.Color(rim) },
     uCut: { value: cut },

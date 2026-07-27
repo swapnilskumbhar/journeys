@@ -11,6 +11,11 @@ import * as THREE from 'three';
 //  · Additive + depthWrite:false is what makes overlapping particles bloom
 //    into light instead of punching holes in each other. depthTest stays ON so
 //    solid bodies (a planet, a star) still occlude the field behind them.
+//  · Additive cannot draw anything DARKER than its background, so a molecular
+//    cloud, volcanic ash or impact dust is impossible in it — they came out as
+//    faint grey glows brightening the very sky they are supposed to blot out.
+//    `blending: 'normal'` switches to alpha compositing for exactly those, and
+//    stays the exception: everything luminous should remain additive.
 //  · Point size is attenuated manually (300/-mv.z) rather than with
 //    sizeAttenuation, because the scale rebaser is already changing world size
 //    every frame and the two would fight.
@@ -86,7 +91,9 @@ const fragment = /* glsl */ `
   }
 `;
 
-export function pointsMaterial({ size = 2.2, maxSize = 16, opacity = 1, twinkle = 0, jitter = 0 } = {}) {
+export function pointsMaterial({
+  size = 2.2, maxSize = 16, opacity = 1, twinkle = 0, jitter = 0, blending = 'additive',
+} = {}) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uSize: { value: size },
@@ -99,7 +106,7 @@ export function pointsMaterial({ size = 2.2, maxSize = 16, opacity = 1, twinkle 
     vertexShader: vertex,
     fragmentShader: fragment,
     transparent: true,
-    blending: THREE.AdditiveBlending,
+    blending: blending === 'normal' ? THREE.NormalBlending : THREE.AdditiveBlending,
     depthWrite: false,
     depthTest: true,
   });

@@ -1,5 +1,6 @@
 import {
   particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette,
+  water, blob,
 } from '../../archetypes/index.js';
 import { AGE, YR, ago, after } from './time.js';
 import { band, plin, plog, smooth, clamp01 } from './curve.js';
@@ -374,33 +375,59 @@ export function makeLayers(uAt, tAt) {
         sunDir: [0.35, 0.9, -0.25],
         sunSize: 0.86,
         sunSoft: 0.5,
+        // The surface overhead is a POOL tens of degrees across, not a sun. At
+        // full gain it was a white blob over a third of the frame that blew out
+        // the entire scene; a source this broad has to be dim.
+        sunGain: 0.22,
         bandLift: 0.35,
         opacity: ({ local }) => band(local, 0.03, 0.12, 0.88, 0.98),
       })),
     L('sea-floor', ago(650e6), ago(470e6), () =>
       terrain({
-        radiusMeters: 60,
-        ampMeters: 1.2,
+        // 40 m, not 60: the haze ramp is a fraction of the radius, so shrinking
+        // the disc is what brings the murk in to a believable underwater
+        // visibility of twenty-odd metres.
+        radiusMeters: 40,
+        ampMeters: 1.5,
         featureMeters: 9,
+        // Both of the seabed's defaults were savanna numbers, and both were
+        // catastrophic at 60 m. The flatten radius defaults to 600 m — larger
+        // than this entire world — so `lift` was zero everywhere and the ground
+        // had literally no relief; and the colour wavelengths were fixed at
+        // 420/90 m, so it had no texture either. Hence a flat brown gradient.
+        //
+        // The flat radius must still COVER THE CAST. Silhouettes stand at y=0
+        // and have no ground-following, so any relief inside the scatter radius
+        // buries them — at 2.5 m of flatten the entire Ediacaran meadow was
+        // underground and the camera was inside a hill.
+        flattenMeters: 18,
         seed: 11,
         haze: 0x0e2740, // underwater visibility is short; the haze is close
-        rock: 0x2b3038,
-        dry: 0x494436, // grey-brown sediment, not savanna gold
-        lightDir: [0.3, 0.85, -0.2],
-        surface: () => ({ sun: 0.42, cover: 0, fields: 0, urban: 0, flatten: 8 }),
+        rock: 0x38414d,
+        dry: 0x5b5442, // grey-brown sediment, not savanna gold
+        // Light from above but well off vertical: straight down leaves every
+        // face at the same incidence and the new relief would not show.
+        lightDir: [0.35, 0.62, -0.3],
+        // Thirty metres of water has taken the red out of it.
+        lightColor: 0x8ec4d8,
+        surface: () => ({ sun: 0.62, cover: 0, fields: 0, urban: 0 }),
         opacity: ({ local }) => band(local, 0.03, 0.12, 0.88, 0.98),
       })),
     // Ediacaran fronds: the whole cast for beat 26, thinning as animals arrive.
     L('ediacaran-fronds', ago(650e6), ago(470e6), () =>
       silhouette({
         kind: 'frond',
-        count: 30,
+        // Pushed back and multiplied. At centreClear 1.4 the nearest fronds sat
+        // six metres from the lens and rendered as a couple of dark masses
+        // cropped by the frame edge; the Ediacaran should read as a MEADOW.
+        count: 56,
         variants: 5,
         seed: 23,
-        areaMeters: 10,
-        heightMeters: [0.3, 1.15],
+        areaMeters: 16,
+        heightMeters: [0.25, 0.95],
         aspect: 0.8,
-        centreClear: 1.4,
+        centreClear: 2.6,
+        nearFadeMeters: 4.5,
         sway: 0.045,
         color: 0x050910,
         rim: 0x39628a,
@@ -419,6 +446,7 @@ export function makeLayers(uAt, tAt) {
         // instances sit a metre from the camera and clip out of frame as
         // unreadable slabs.
         centreClear: 3.2,
+        nearFadeMeters: 5.0,
         heightMeters: [0.3, 0.85],
         aspect: 2.1,
         yMeters: 1.4,
@@ -427,6 +455,25 @@ export function makeLayers(uAt, tAt) {
         rim: 0x4a7ba6,
         opacity: ({ u, local }) =>
           band(local, 0.04, 0.14, 0.9, 0.99) * plin([[570e6, 0], [540e6, 0.35], [515e6, 1]], yaAt(u)),
+      })),
+    // The sea surface, TEN METRES OVERHEAD. Without it the backdrop's gradient
+    // reads as a dusk sky and the whole scene as a prairie: nothing else in the
+    // frame says the camera is submerged. Snell's window — the bright cone
+    // directly above, everything outside it a dark mirror — is the one cue that
+    // cannot be mistaken for anything else.
+    L('sea-ceiling', ago(650e6), ago(470e6), () =>
+      water({
+        radiusMeters: 130,
+        levelMeters: 10,
+        waveMeters: 0.18,
+        wavelengthMeters: 2.2,
+        chop: 1.15,
+        below: 0x0b1f2f,
+        windowColor: 0xa6cfe6,
+        sunColor: 0xd6ecf8,
+        sunDir: [0.28, 0.93, -0.24],
+        sunGain: 0.5,
+        opacity: ({ local }) => band(local, 0.03, 0.12, 0.88, 0.98) * 0.92,
       })),
     // marine snow — the drifting motes that make water read as water
     L('sea-motes', ago(650e6), ago(470e6), () =>

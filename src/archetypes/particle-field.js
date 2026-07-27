@@ -24,6 +24,9 @@ export function particleField({
   twinkle = 0,
   jitter = 0,
   seed = 1,
+  // 'additive' for anything luminous, 'normal' for anything that OBSCURES —
+  // dust, ash, a dark molecular cloud. See points-material.js.
+  blending = 'additive',
   // disk only
   thickness = 0.06,
   spiralArms = 0,
@@ -120,7 +123,7 @@ export function particleField({
   geo.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1.6);
 
-  const mat = pointsMaterial({ size, maxSize, twinkle, jitter });
+  const mat = pointsMaterial({ size, maxSize, twinkle, jitter, blending });
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false; // the group is rescaled every frame
 
