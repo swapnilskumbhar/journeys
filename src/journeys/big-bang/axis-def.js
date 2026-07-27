@@ -36,16 +36,34 @@ export const axisDef = {
     { from: after(1e9), to: ago(5e9), weight: 0.09 },
     // The dive: cosmic scales down to a collapsing molecular cloud. Linear,
     // because it is a short span carrying a long camera move.
-    { from: ago(5e9), to: ago(4.568e9), space: 'linear', weight: 0.08 },
-    // The Hadean, LINEAR. In lookback space 4.568 and 4.4 Gyr ago differ by
-    // four percent and collapse onto each other; the Sun, the Moon-forming
-    // impact and the first oceans would land within a few hundred pixels.
-    // Linear pacing over a narrow span is what separates them.
-    { from: ago(4.568e9), to: ago(4.0e9), space: 'linear', weight: 0.07 },
-    // → the K–Pg impact. Three and a half billion years of life.
-    { from: ago(4.0e9), to: ago(66e6), space: 'lookback', pivot: AGE, weight: 0.15 },
+    { from: ago(5e9), to: ago(4.60e9), space: 'linear', weight: 0.07 },
+
+    // --- the life era ---------------------------------------------------------
+    // Everything from here to the K–Pg impact used to be four segments. That was
+    // right when these beats were nine static globes needing no time, and became
+    // wrong the moment they started carrying scenes: "A star is born" — the whole
+    // formation of the solar system, with a six-decade zoom inside it — got 0.4
+    // viewport-heights, and the Ediacaran seafloor got 0.28. Both passed every
+    // check that measured the axis rather than the screen.
+    //
+    // So the era is cut finer, one segment per scene, and the weights are set
+    // against scroll on screen. scripts/smoke.mjs gates it in viewport-heights;
+    // tune by re-running that, not by eye.
+    //
+    // The Hadean stays LINEAR. In lookback space 4.568 and 4.4 Gyr ago differ by
+    // four percent and collapse onto each other; the Sun, the Moon-forming impact
+    // and the first oceans would land within a few hundred pixels of each other.
+    { from: ago(4.60e9), to: ago(4.53e9), space: 'linear', weight: 0.055 }, // 20 A star is born
+    { from: ago(4.53e9), to: ago(4.46e9), space: 'linear', weight: 0.06 },  // 21 The Moon — an impact sequence
+    { from: ago(4.46e9), to: ago(4.0e9), space: 'linear', weight: 0.05 },   // 22 Oceans
+    { from: ago(4.0e9), to: ago(2.6e9), space: 'lookback', pivot: AGE, weight: 0.05 },  // 23 Life
+    { from: ago(2.6e9), to: ago(2.0e9), space: 'lookback', pivot: AGE, weight: 0.04 },  // 24 The oxygen catastrophe
+    { from: ago(2.0e9), to: ago(640e6), space: 'lookback', pivot: AGE, weight: 0.05 },  // 25 Cells within cells
+    { from: ago(640e6), to: ago(440e6), space: 'lookback', pivot: AGE, weight: 0.13 },  // 26 Bodies · 27 Cambrian · 28 Land
+    { from: ago(440e6), to: ago(66e6), space: 'lookback', pivot: AGE, weight: 0.06 },   // 29 The Great Dying
     // → now. Stops one year short of the pivot: log space cannot reach zero,
-    // and "1 year ago" is close enough to today to be called today.
-    { from: ago(66e6), to: ago(1), space: 'lookback', pivot: AGE, weight: 0.19 },
+    // and "1 year ago" is close enough to today to be called today. Carries the
+    // K–Pg impact as well as the whole human story, hence the largest weight.
+    { from: ago(66e6), to: ago(1), space: 'lookback', pivot: AGE, weight: 0.24 },
   ],
 };

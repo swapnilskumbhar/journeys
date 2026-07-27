@@ -7,6 +7,7 @@ import { makeAxis } from '../src/engine/axis.js';
 import { makeRebaser } from '../src/engine/rebase.js';
 import { axisDef } from '../src/journeys/big-bang/axis-def.js';
 import { beats } from '../src/journeys/big-bang/beats.js';
+import { length } from '../src/journeys/big-bang/pacing.js';
 import { AGE, YR } from '../src/journeys/big-bang/time.js';
 
 let failures = 0;
@@ -75,6 +76,48 @@ const maxGap = Math.max(...gaps);
 ok(minGap > 0.002, 'no two beats collide', `min gap ${(minGap * 100).toFixed(2)}%`);
 ok(maxGap < 0.11, 'no dead stretch of scroll', `max gap ${(maxGap * 100).toFixed(2)}%`);
 
+// --- beat pacing, in viewport-heights ------------------------------------
+// The check above is a fraction of the AXIS, and that is what let the real
+// defect through: segment weights were tuned when the life era was nine static
+// globes needing no time, and were never revisited once those beats carried
+// scenes. "A star is born" — the entire formation of the solar system, with a
+// six-decade zoom inside it — was 0.40vh, about 360 pixels. It passed every
+// check here, because as a fraction of the axis it looked ordinary.
+//
+// So gate on what the reader actually experiences: how many screens of scroll
+// each beat occupies. A beat holds the scroll from its own mark to the next
+// one; the last one holds it to the end.
+console.log('\n# beat pacing (viewport-heights)');
+const spans = us.map((u, i) => (i === us.length - 1 ? 1 : us[i + 1]) - u);
+const vh = spans.map((s) => s * length);
+
+// Beats 19–30 (Our galaxy → the K–Pg impact) each stage a scene that has to be
+// looked at, so they get a real floor. 1.5vh is about four seconds of ordinary
+// scrolling — enough to read the copy and still watch something happen.
+const SCENE_FROM = 19;
+const SCENE_TO = 30;
+const SCENE_FLOOR = 1.5;
+// Everywhere else the floor is only "did not vanish". It cannot be raised to
+// the same value: the wheel and writing are honestly 1,300 years apart, which
+// on a log-lookback axis is 0.2% of the journey no matter how it is weighted.
+// Moving them apart would mean lying about the dates, so instead they are held
+// to the collision threshold above, expressed in the unit that matters.
+const FLOOR = 0.15;
+
+const scene = vh.slice(SCENE_FROM - 1, SCENE_TO);
+const tightScene = Math.min(...scene);
+const tightest = Math.min(...vh);
+ok(
+  tightScene >= SCENE_FLOOR,
+  `every scene beat (${SCENE_FROM}–${SCENE_TO}) gets ${SCENE_FLOOR}vh of scroll`,
+  `tightest ${tightScene.toFixed(2)}vh at beat ${vh.indexOf(tightScene) + 1}`,
+);
+ok(
+  tightest >= FLOOR,
+  `no beat anywhere drops under ${FLOOR}vh`,
+  `tightest ${tightest.toFixed(2)}vh at beat ${vh.indexOf(tightest) + 1}`,
+);
+
 // The whole point of the segmented axis: the first second and the last
 // 66 million years should each own a real share of the scroll.
 const firstSecond = A.toU(1);
@@ -89,8 +132,15 @@ for (const u of [0, 0.1, 0.24, 0.35, 0.5, 0.62, 0.7, 0.8, 0.9, 0.96, 0.99, 1]) {
 
 console.log('\n# beats');
 beats.forEach((b, i) => {
-  console.log(`  ${String(i + 1).padStart(2)}  u=${us[i].toFixed(4)}  ${A.format(us[i]).padEnd(16)} ${b.heading}`);
+  const n = vh[i];
+  const flag = n < (i + 1 >= SCENE_FROM && i + 1 <= SCENE_TO ? SCENE_FLOOR : FLOOR) ? ' <<' : '';
+  console.log(
+    `  ${String(i + 1).padStart(2)}  u=${us[i].toFixed(4)}  ${A.format(us[i]).padEnd(16)}` +
+      `${n.toFixed(2).padStart(6)}vh  ${b.heading}${flag}`,
+  );
 });
+console.log(`\n  total ${length}vh · scene beats ${SCENE_FROM}–${SCENE_TO}` +
+  ` sum ${scene.reduce((a, b) => a + b, 0).toFixed(1)}vh`);
 
 console.log(`\n${failures === 0 ? 'SMOKE PASS' : `SMOKE FAIL (${failures})`}`);
 process.exit(failures === 0 ? 0 : 1);

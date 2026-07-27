@@ -5,6 +5,7 @@ import { beats } from './beats.js';
 import { makeLayers } from './layers.js';
 import { ago, after } from './time.js';
 import { axisDef } from './axis-def.js';
+import { length } from './pacing.js';
 import { plog, plin } from './curve.js';
 
 // A local copy so layer bounds, the scale law and the camera can all be keyed
@@ -185,11 +186,9 @@ const CAM = [
 export default defineJourney({
   ...meta,
   axis: axisDef,
-  // Viewport-heights of scroll. At 39 beats this averages ~1.6 each, which is
-  // what keeps the tightest legitimate clusters (the wheel and writing are
-  // genuinely 1,300 years apart) readable rather than a flicker.
-  // scripts/smoke.mjs enforces the floor.
-  length: 62,
+  // Viewport-heights of scroll — see pacing.js. scripts/smoke.mjs enforces
+  // the per-beat floor in vh, which is the unit the defect actually lives in.
+  length,
   stageOptions: {
     background: 0x010206,
     // A zero threshold blooms everything including the dim points, which is
