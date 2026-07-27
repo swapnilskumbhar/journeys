@@ -55,6 +55,22 @@ const SCALE = [
   [uAt(ago(4.45e9)), 3.2e7],
   [uAt(ago(4.4e9)), 1.7e7], // Earth fills the frame
 
+  // The seafloor era — prototype for the fix to the whole life era. The frame
+  // used to sit at 1.7e7 m from 4.4 Gyr ago all the way to 60 Myr ago: nine
+  // beats, no scale change, nine near-identical globes. Copy about mitochondria
+  // and trilobites over a static sphere is the "captions don't match" problem
+  // in one line of table.
+  //
+  // The window must span both beats it serves END TO END, not just their `at`
+  // marks — a beat occupies the scroll from its own position to the NEXT one,
+  // so a window centred on 538 Mya is already gone by the time the Cambrian
+  // copy is on screen. 6 m is the frame where a 0.8 m animal reads as an
+  // animal; at 60 m it is twenty pixels of nothing.
+  [uAt(ago(660e6)), 1.7e7],
+  [uAt(ago(624e6)), 6],   // down to the seafloor for the Ediacaran
+  [uAt(ago(484e6)), 6],   // …and held through the Cambrian
+  [uAt(ago(474e6)), 1.7e7],
+
   // --- the descent -----------------------------------------------------------
   // The zoom does not stop at Earth. After the asteroid, the same dive that
   // went cosmic-web → galaxy → disc continues: orbit → aerial savanna → a
@@ -96,6 +112,19 @@ const SCALE = [
 // object-centric beats push their subject right of centre; field beats fill the
 // frame and stay centred. Applied as a camera pan (translate after aiming), not
 // as a change of target, so the subject does not rotate as it slides.
+// Vertical framing. The camera aims at the origin by default, which for a
+// ground-level scene puts the horizon dead centre and fills the lower half of
+// the frame with bare floor. Raising the look target tips the view up, trading
+// empty ground for the water (or sky) where the subject actually is.
+const LOOK_Y = [
+  [0, 0],
+  [uAt(ago(660e6)), 0],
+  [uAt(ago(624e6)), 0.85],
+  [uAt(ago(484e6)), 0.85],
+  [uAt(ago(474e6)), 0],
+  [1, 0],
+];
+
 const PAN = [
   [0, 0],
   [uAt(ago(4.62e9)), 0],
@@ -131,6 +160,11 @@ const CAM = [
   [uAt(ago(4.568e9)), [0, 1.9, 6.2]],
   [uAt(ago(4.51e9)), [0, 0.9, 6.4]],
   [uAt(ago(4.2e9)), [0, 0.55, 6.0]],
+  // Seafloor: low and level, looking along the bottom rather than down at it.
+  [uAt(ago(660e6)), [0, 0.55, 6.0]],
+  [uAt(ago(624e6)), [0, 0.34, 5.2]],
+  [uAt(ago(484e6)), [0, 0.34, 5.2]],
+  [uAt(ago(474e6)), [0, 0.55, 6.0]],
   // Surface work. Altitude is what changes: high and oblique for the aerials
   // (the hominin split, the firelight migration), low — a few dozen metres at
   // the current frame scale — for the campfire and the streets of the first
@@ -175,7 +209,7 @@ export default defineJourney({
     // with a fixed-step virtual one, so renders stay reproducible.
     const a = t * 0.035;
     cam.position.set(x * Math.cos(a) + z * Math.sin(a), y, z * Math.cos(a) - x * Math.sin(a));
-    cam.lookAt(0, 0, 0);
+    cam.lookAt(0, plin(LOOK_Y, u), 0);
     // Pan AFTER aiming: sliding the camera left without re-aiming pushes the
     // subject right in frame, clear of the copy panel.
     const pan = plin(PAN, u);

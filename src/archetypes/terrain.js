@@ -83,6 +83,8 @@ const fragment = /* glsl */ `
   uniform float uCover;    // vegetation
   uniform float uFields;   // farmed patchwork
   uniform float uUrban;    // built ground at the centre
+  uniform vec3  uRock;     // bare substrate
+  uniform vec3  uDry;      // uncovered ground (savanna gold, seabed grey…)
   uniform float uOpacity;
 
   varying vec3 vPos;
@@ -109,8 +111,8 @@ const fragment = /* glsl */ `
     // ground cover: dry gold grass mottled toward green by uCover
     // (NB "patch" is a GLSL reserved word)
     float mottle = vnoise(wm / 420.0);
-    vec3 rock  = vec3(0.21, 0.18, 0.14);
-    vec3 dry   = vec3(0.30, 0.255, 0.125);
+    vec3 rock  = uRock;
+    vec3 dry   = uDry;
     vec3 green = vec3(0.135, 0.19, 0.075);
     vec3 grass = mix(dry, green, uCover * (0.35 + 0.65 * mottle));
     vec3 col = mix(rock, grass, 0.45 + 0.55 * vnoise(wm / 90.0));
@@ -152,6 +154,8 @@ export function terrain({
   featureMeters = 1300,
   seed = 1,
   haze = 0x10121e,
+  rock = 0x362e24,
+  dry = 0x4d4120,
   lightDir = [0.7, 0.3, 0.5],
   surface = () => ({}),
   opacity = () => 1,
@@ -164,6 +168,8 @@ export function terrain({
     uSeed: { value: seed },
     uLightDir: { value: new THREE.Vector3(...lightDir).normalize() },
     uHaze: { value: new THREE.Color(haze) },
+    uRock: { value: new THREE.Color(rock) },
+    uDry: { value: new THREE.Color(dry) },
     uRadiusM: { value: radiusMeters },
     uSun: { value: 0.7 },
     uCover: { value: 0.5 },

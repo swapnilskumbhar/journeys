@@ -1,4 +1,6 @@
-import { particleField, glowSphere, filaments, planet, terrain, blocks } from '../../archetypes/index.js';
+import {
+  particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette,
+} from '../../archetypes/index.js';
 import { AGE, YR, ago, after } from './time.js';
 import { band, plin, plog, smooth, clamp01 } from './curve.js';
 
@@ -237,7 +239,14 @@ export function makeLayers(uAt, tAt) {
         maxSize: 4,
         twinkle: 0.5,
         radiusMeters: ({ rebase }) => rebase.frameMeters() * 4,
-        opacity: ({ local }) => band(local, 0, 0.06) * 0.45,
+        // Gated on the FRAME, not on u. Every night scene above ground (the
+        // campfire at 260 m, the cities at 5–7 km) keeps its stars; the
+        // seafloor at a 6 m frame does not, because stars underwater in
+        // daylight is the single most illusion-breaking thing in the journey.
+        opacity: ({ local, rebase }) => {
+          const f = rebase.frameMeters();
+          return band(local, 0, 0.06) * 0.45 * Math.min(1, Math.max(0, (f - 60) / 140));
+        },
       })),
 
     // --- the Milky Way -----------------------------------------------------
@@ -344,6 +353,99 @@ export function makeLayers(uAt, tAt) {
     // true Earth–Moon system fits. As the scale law closes in on Earth the Moon
     // leaves the frame on its own, which is the honest thing for it to do
     // rather than parking it at a flattering fake distance.
+    // --- the seafloor era ----------------------------------------------------
+    // PROTOTYPE SLICE. Proving the backdrop+silhouette pair on the Ediacaran
+    // and Cambrian beats before the same treatment goes to the rest of the
+    // globe-locked life era.
+    //
+    // One seafloor serves both beats, and the STORY is what changes on it:
+    // fronds alone for the Ediacaran, then animals arriving over them. That
+    // transition is the Cambrian explosion, told by the layer envelopes rather
+    // than by a cut.
+    L('sea-water', ago(650e6), ago(470e6), () =>
+      backdrop({
+        radiusFrames: 7,
+        // seen from below, the sea surface is the bright thing overhead and
+        // the deep is the dark thing below — the gradient is inverted from sky
+        top: 0x4d7fa8,
+        horizon: 0x1d3f5e,
+        bottom: 0x040a12,
+        sunColor: 0x9fd0e8,
+        sunDir: [0.35, 0.9, -0.25],
+        sunSize: 0.86,
+        sunSoft: 0.5,
+        bandLift: 0.35,
+        opacity: ({ local }) => band(local, 0.03, 0.12, 0.88, 0.98),
+      })),
+    L('sea-floor', ago(650e6), ago(470e6), () =>
+      terrain({
+        radiusMeters: 60,
+        ampMeters: 1.2,
+        featureMeters: 9,
+        seed: 11,
+        haze: 0x0e2740, // underwater visibility is short; the haze is close
+        rock: 0x2b3038,
+        dry: 0x494436, // grey-brown sediment, not savanna gold
+        lightDir: [0.3, 0.85, -0.2],
+        surface: () => ({ sun: 0.42, cover: 0, fields: 0, urban: 0, flatten: 8 }),
+        opacity: ({ local }) => band(local, 0.03, 0.12, 0.88, 0.98),
+      })),
+    // Ediacaran fronds: the whole cast for beat 26, thinning as animals arrive.
+    L('ediacaran-fronds', ago(650e6), ago(470e6), () =>
+      silhouette({
+        kind: 'frond',
+        count: 30,
+        variants: 5,
+        seed: 23,
+        areaMeters: 10,
+        heightMeters: [0.3, 1.15],
+        aspect: 0.8,
+        centreClear: 1.4,
+        sway: 0.045,
+        color: 0x050910,
+        rim: 0x39628a,
+        opacity: ({ u, local }) =>
+          band(local, 0.05, 0.16, 0.9, 0.99) * plin([[640e6, 1], [545e6, 1], [500e6, 0.55]], yaAt(u)),
+      })),
+    // …and the animals, arriving on the Cambrian beat.
+    L('cambrian-swimmers', ago(575e6), ago(470e6), () =>
+      silhouette({
+        kind: 'segmented',
+        count: 22,
+        variants: 6,
+        seed: 17,
+        areaMeters: 10,
+        // centreClear keeps swimmers off the lens: without it the nearest
+        // instances sit a metre from the camera and clip out of frame as
+        // unreadable slabs.
+        centreClear: 3.2,
+        heightMeters: [0.3, 0.85],
+        aspect: 2.1,
+        yMeters: 1.4,
+        spreadY: 2.0,
+        color: 0x04070c,
+        rim: 0x4a7ba6,
+        opacity: ({ u, local }) =>
+          band(local, 0.04, 0.14, 0.9, 0.99) * plin([[570e6, 0], [540e6, 0.35], [515e6, 1]], yaAt(u)),
+      })),
+    // marine snow — the drifting motes that make water read as water
+    L('sea-motes', ago(650e6), ago(470e6), () =>
+      particleField({
+        count: 700,
+        distribution: 'ball',
+        seed: 29,
+        colorA: 0xbcd8ea,
+        colorB: 0x6f9ec0,
+        colorMode: 'random',
+        size: 1.5,
+        maxSize: 4,
+        jitter: 0.012,
+        twinkle: 0.35,
+        radiusMeters: 9,
+        offsetMeters: [0, 2.5, 0],
+        opacity: ({ local }) => band(local, 0.05, 0.16, 0.9, 0.99) * 0.45,
+      })),
+
     // --- the surface ---------------------------------------------------------
     // From the hominin beats to the industrial age the frame is 300 m – 25 km
     // and the world is a heightfield, not a globe. Earth (fixed at its real

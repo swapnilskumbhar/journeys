@@ -11,4 +11,6 @@ export { filaments } from './filaments.js';
 export { planet } from './planet.js';
 export { terrain } from './terrain.js';
 export { blocks } from './blocks.js';
+export { backdrop } from './backdrop.js';
+export { silhouette } from './silhouette.js';
 export { pointsMaterial, rng, gaussian } from './points-material.js';

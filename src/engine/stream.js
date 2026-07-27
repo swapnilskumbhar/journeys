@@ -11,7 +11,7 @@
 // frame while mounted; `local` is the layer's own 0→1 progress, which is what
 // most content should animate against.
 
-export function makeStreamer({ scene, THREE, rebase, kit, hysteresis = 0.04 }) {
+export function makeStreamer({ scene, THREE, rebase, kit, camera = null, hysteresis = 0.04 }) {
   const mounted = new Map(); // id -> { layer, handle }
 
   function windowFor(layer, slack) {
@@ -57,7 +57,9 @@ export function makeStreamer({ scene, THREE, rebase, kit, hysteresis = 0.04 }) {
         if (!handle.update) continue;
         const span = layer.to - layer.from || 1;
         const local = Math.max(0, Math.min(1, (u - layer.from) / span));
-        handle.update({ u, local, rebase, dt, t });
+        // `camera` is here for billboarded archetypes, which need to resolve
+        // the view direction in their own local space every frame.
+        handle.update({ u, local, rebase, dt, t, camera });
       }
     },
     get size() {

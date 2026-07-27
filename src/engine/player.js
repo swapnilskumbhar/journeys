@@ -41,7 +41,7 @@ export function mountJourney(journey, container) {
   const holder = container.querySelector('.canvas-holder');
   const stage = createStage(holder, journey.stageOptions);
   const rebase = makeRebaser();
-  const streamer = makeStreamer({ scene: stage.scene, THREE, rebase, kit });
+  const streamer = makeStreamer({ scene: stage.scene, THREE, rebase, kit, camera: stage.camera });
   streamer.setLayers(journey.layers);
 
   const panel = container.querySelector('.beat-panel');
