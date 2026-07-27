@@ -188,6 +188,14 @@ export const beats = [
     body: 'As the last ice age ends, people in the Fertile Crescent begin planting the seeds they gathered. Food can now be stored, which means surplus, which means settlements, specialists, property and hierarchy. Independently, the same thing happens in China, Mesoamerica, the Andes and New Guinea.',
   },
   {
+    // Anchored at the potter's wheel (~4500 BCE), the wheel's true beginning —
+    // wheeled VEHICLES follow ~3500 BCE, inside this beat's span. It cannot sit
+    // at 5.5 kya: on a log-lookback axis that collides with Writing at 5.2.
+    at: ago(6.5e3),
+    heading: 'The wheel',
+    body: 'The wheel does not start as transport. For centuries it lies flat: a potter\'s wheel, spinning clay in Mesopotamian workshops. Then someone stands one on its edge, puts an axle through it and a box on top — and distance starts to shrink. Almost everything ever moved by land since has rolled.',
+  },
+  {
     at: ago(5.2e3),
     heading: 'Writing',
     body: 'In Uruk, accountants pressing marks into clay to track grain and livestock slowly turn tallies into signs, and signs into language. It is the first time information outlives the person holding it — and the moment history begins to record itself.',
@@ -198,7 +206,10 @@ export const beats = [
     body: 'Britain starts burning coal at scale, and human muscle stops being the limit on what can be built. Within two centuries, population, energy use and atmospheric carbon all bend sharply upward — and humanity becomes a geological force in its own right.',
   },
   {
-    at: ago(1),
+    // Placed a few years short of the pivot so the beat owns the whole
+    // pull-back to orbit — this copy IS the pull-back's narration, and at
+    // ago(1) it only appeared at the very last pixel of scroll.
+    at: ago(8),
     heading: 'Today',
     body: 'Thirteen point eight billion years of physics, and a small fraction of the matter produced by it has arranged itself into something that can work out where it came from. The whole of recorded history occupies the last one-thousandth of one percent of that scroll.',
     hint: 'Drag the ribbon to travel back.',

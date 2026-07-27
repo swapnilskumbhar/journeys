@@ -1,4 +1,4 @@
-import { particleField, glowSphere, filaments, planet } from '../../archetypes/index.js';
+import { particleField, glowSphere, filaments, planet, terrain, blocks } from '../../archetypes/index.js';
 import { AGE, YR, ago, after } from './time.js';
 import { band, plin, plog, smooth, clamp01 } from './curve.js';
 
@@ -344,6 +344,236 @@ export function makeLayers(uAt, tAt) {
     // true Earth–Moon system fits. As the scale law closes in on Earth the Moon
     // leaves the frame on its own, which is the honest thing for it to do
     // rather than parking it at a flattering fake distance.
+    // --- the surface ---------------------------------------------------------
+    // From the hominin beats to the industrial age the frame is 300 m – 25 km
+    // and the world is a heightfield, not a globe. Earth (fixed at its real
+    // radius) dissolves on the rebase band during the descent and re-forms
+    // during the final pull-back, so the hand-off costs nothing.
+
+    // One terrain serves the whole surface era; its ground cover, field
+    // patchwork, urban centre and sun level are all driven by years-before-
+    // present, the same pattern the planet uses for geological time.
+    L('ground', ago(30e6), ago(1.2), () =>
+      terrain({
+        radiusMeters: 3e4,
+        ampMeters: 26,
+        featureMeters: 1300,
+        seed: 3,
+        haze: 0x171420,
+        lightDir: [0.7, 0.28, 0.5],
+        // Entry and exit are keyed on the FRAME, not on u: the ground only
+        // exists as a place once the frame is under ~40 km, and dissolves
+        // again past it on the way back to orbit. This is what makes both
+        // hand-offs with the planet cost nothing — Earth fades on the rebase
+        // band at almost the same frame widths.
+        opacity: ({ local, rebase }) => {
+          const f = rebase.frameMeters();
+          // Long entry ramp: the ground ghosts in from ~1.1e6 m frames so the
+          // fall from orbit is never a black screen — there is always either a
+          // dissolving planet or an approaching land haze in view.
+          const lift = f > 6e4 ? Math.max(0, 1 - (f - 6e4) / 1.05e6) : 1;
+          return band(local, 0.005, 0.02) * lift;
+        },
+        surface: ({ u }) => {
+          const ya = yaAt(u);
+          return {
+            cover: plin([[30e6, 0.45], [2e6, 0.55], [12e3, 0.62], [5e3, 0.5], [260, 0.42], [1, 0.4]], ya),
+            fields: plin([[14e3, 0], [10e3, 0.7], [6e3, 0.92], [600, 0.85], [120, 0.5], [1, 0.35]], ya),
+            urban: plin([[6.4e3, 0], [5.2e3, 0.6], [900, 0.65], [260, 0.85], [1, 0.92]], ya),
+            // dusk-forward light: fire and the first cities read at low sun,
+            // and a black sky over broad daylight would read as a bug
+            sun: plin([[30e6, 0.9], [2.4e6, 0.55], [1.9e6, 0.38], [300e3, 0.42], [65e3, 0.3],
+                       [20e3, 0.55], [12e3, 0.8], [6.5e3, 0.68], [5.2e3, 0.55], [600, 0.5], [260, 0.42], [1, 0.4]], ya),
+            // the level plain grows with the settlement that stands on it
+            flatten: plin([[30e6, 600], [9e3, 900], [5.5e3, 1500], [3e3, 1800], [600, 5000], [280, 7000], [1, 7000]], ya),
+          };
+        },
+      })),
+
+    // Fire — the literal beat subject, at human scale: a hearth glow plus a
+    // column of drifting sparks. It burns from Homo erectus through the
+    // 300 kya "Us" beat (two more camps join) and is what the "Out of Africa"
+    // aerial then multiplies into a constellation.
+    L('fire-glow', ago(2.3e6), ago(110e3), () =>
+      glowSphere({
+        radiusMeters: 7,
+        offsetMeters: [0, 4, 0],
+        color: 0xffc27a,
+        haloColor: 0xff9a40,
+        haloScale: 9,
+        opacity: ({ local, t }) =>
+          band(local, 0.03, 0.1, 0.9, 0.98) * (0.78 + 0.16 * Math.sin(t * 6.3) + 0.06 * Math.sin(t * 17.1)),
+      })),
+    L('fire-sparks', ago(2.3e6), ago(110e3), () =>
+      particleField({
+        count: 130,
+        distribution: 'ball',
+        seed: 41,
+        colorA: 0xffd9a0,
+        colorB: 0xff5a20,
+        size: 2.6,
+        maxSize: 6,
+        jitter: 0.06,
+        twinkle: 0.9,
+        radiusMeters: 12,
+        offsetMeters: [0, 9, 0],
+        opacity: ({ local }) => band(local, 0.03, 0.1, 0.9, 0.98) * 0.9,
+      })),
+    L('camp-2', ago(600e3), ago(110e3), () =>
+      glowSphere({
+        radiusMeters: 4,
+        offsetMeters: [110, 3, -60],
+        color: 0xffb46a,
+        haloScale: 6,
+        opacity: ({ local, t }) => band(local, 0.05, 0.2, 0.9, 0.98) * (0.7 + 0.2 * Math.sin(t * 5.1 + 2)),
+      })),
+    L('camp-3', ago(600e3), ago(110e3), () =>
+      glowSphere({
+        radiusMeters: 4,
+        offsetMeters: [-85, 3, 75],
+        color: 0xffb46a,
+        haloScale: 6,
+        opacity: ({ local, t }) => band(local, 0.05, 0.2, 0.9, 0.98) * (0.7 + 0.2 * Math.sin(t * 4.3 + 4)),
+      })),
+
+    // Out of Africa, seen from altitude at night: fires multiplying across the
+    // plain. Migration drawn as the spread of firelight — points lying on the
+    // terrain plane, some swallowed by hills, which is what keeps the spread
+    // looking settled-in rather than sprinkled-on.
+    L('migration-fires', ago(105e3), ago(15e3), () =>
+      particleField({
+        count: 850,
+        distribution: 'disk',
+        thickness: 0.004,
+        seed: 59,
+        colorA: 0xffd9a0,
+        colorB: 0xff8a50,
+        colorMode: 'random',
+        size: 3.2,
+        maxSize: 7,
+        twinkle: 0.55,
+        radiusMeters: 1.2e4,
+        offsetMeters: [0, 45, 0],
+        opacity: ({ local }) => band(local, 0.05, 0.25, 0.75, 0.95) * 0.85,
+      })),
+
+    // Settlements, in three ages that cross-fade: a farming hamlet, the
+    // mudbrick city of the writing beat (lamplit, faintly), and the industrial
+    // city the pull-back leaves behind (electrified, smoking).
+    L('hamlet', ago(11.5e3), ago(5.4e3), () =>
+      blocks({
+        count: 26,
+        areaMeters: 240,
+        spacingMeters: 26,
+        heightMeters: [2.5, 4.5],
+        seed: 5,
+        color: 0x6b5a44,
+        lightDir: [0.7, 0.28, 0.5],
+        sun: () => 0.75,
+        opacity: ({ local }) => band(local, 0.06, 0.2, 0.8, 0.95),
+      })),
+    L('city', ago(6e3), ago(600), () =>
+      blocks({
+        count: 480,
+        areaMeters: 850,
+        spacingMeters: 34,
+        heightMeters: [3, 10],
+        seed: 9,
+        color: 0x6e5d45,
+        lightDir: [0.7, 0.28, 0.5],
+        sun: () => 0.55,
+        night: ({ u }) => plin([[5.4e3, 0], [4.6e3, 0.2], [700, 0.25]], yaAt(u)),
+        opacity: ({ local }) => band(local, 0.05, 0.18, 0.85, 0.97),
+      })),
+
+    // Hearth- and lamplight over the settlements. At the aerial frames where
+    // a whole village or city fits, a 4 m hut is sub-pixel — but a warm point
+    // under bloom reads at ANY scale, so the lights are what say "inhabited".
+    // Same trick the Out of Africa constellation uses, at town size.
+    L('village-lamps', ago(10.5e3), ago(4.9e3), () =>
+      particleField({
+        count: 34,
+        distribution: 'disk',
+        thickness: 0.01,
+        seed: 71,
+        colorA: 0xffd9a0,
+        colorB: 0xff9a50,
+        colorMode: 'random',
+        size: 3.4,
+        maxSize: 7,
+        twinkle: 0.5,
+        radiusMeters: 210,
+        offsetMeters: [0, 7, 0],
+        opacity: ({ local }) => band(local, 0.08, 0.25, 0.8, 0.95) * 0.9,
+      })),
+    L('city-lamps', ago(5.7e3), ago(650), () =>
+      particleField({
+        count: 150,
+        distribution: 'disk',
+        thickness: 0.01,
+        seed: 79,
+        colorA: 0xffd9a0,
+        colorB: 0xff8a50,
+        colorMode: 'random',
+        size: 3.0,
+        maxSize: 6,
+        twinkle: 0.45,
+        radiusMeters: 780,
+        offsetMeters: [0, 9, 0],
+        opacity: ({ local }) => band(local, 0.06, 0.2, 0.85, 0.97) * 0.8,
+      })),
+    L('industrial', ago(800), ago(1.1), () =>
+      blocks({
+        count: 1600,
+        areaMeters: 5500,
+        spacingMeters: 105,
+        heightMeters: [5, 38],
+        footprint: 0.55,
+        seed: 23,
+        color: 0x5f5b55,
+        lightDir: [0.7, 0.28, 0.5],
+        sun: () => 0.55,
+        night: ({ u }) => plin([[500, 0.05], [260, 0.3], [120, 0.6], [30, 0.95], [1, 1]], yaAt(u)),
+        opacity: ({ local }) => band(local, 0.04, 0.15),
+      })),
+    // The electrified city's glow. Window fragments are sub-pixel at a 7 km
+    // frame; the point field is what actually reads — and during the pull-back
+    // it becomes the shrinking patch of light that hands off to the planet's
+    // own night-side cities.
+    L('industrial-lights', ago(700), ago(1.2), () =>
+      particleField({
+        count: 1400,
+        distribution: 'disk',
+        thickness: 0.008,
+        seed: 89,
+        colorA: 0xfff4d0,
+        colorB: 0xff9a50,
+        colorMode: 'random',
+        size: 2.6,
+        maxSize: 6,
+        twinkle: 0.3,
+        radiusMeters: 4.8e3,
+        offsetMeters: [0, 25, 0],
+        opacity: ({ u, local }) =>
+          band(local, 0.03, 0.12) * plin([[500, 0], [260, 0.3], [120, 0.65], [30, 1], [1, 1]], yaAt(u)) * 0.9,
+      })),
+    L('smoke', ago(300), ago(15), () =>
+      particleField({
+        count: 900,
+        distribution: 'cloud',
+        clumps: 14,
+        clumpSpread: 0.09,
+        seed: 67,
+        colorA: 0x3a332e,
+        colorB: 0x201c19,
+        size: 9,
+        maxSize: 20,
+        jitter: 0.02,
+        radiusMeters: 3e3,
+        offsetMeters: [0, 700, 0],
+        opacity: ({ local }) => band(local, 0.1, 0.35, 0.8, 0.97) * 0.22,
+      })),
+
     // Built from the planet archetype rather than a glowing sphere: an unlit
     // basic material renders as a flat grey disc, and the Moon sharing Earth's
     // light direction — same terminator, same angle — is most of what sells the

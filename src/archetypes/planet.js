@@ -113,7 +113,7 @@ const fragment = /* glsl */ `
     float nightMask = smoothstep(0.24, 0.0, lambert);
     float coast = smoothstep(uSeaLevel + 0.13, uSeaLevel + 0.005, h) * land;
     float cities = step(0.58, fbm(n * 30.0)) * coast * nightMask * uNight;
-    lit += vec3(1.0, 0.78, 0.44) * cities * 1.9;
+    lit += vec3(1.0, 0.78, 0.44) * cities * 2.4;
 
     gl_FragColor = vec4(lit, uOpacity);
   }

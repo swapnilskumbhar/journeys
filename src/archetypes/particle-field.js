@@ -36,6 +36,10 @@ export function particleField({
   opacity = () => 1,
   scaleBias = 1,
   spin = 0,
+  // Displacement from the journey origin, in METRES (number = +x, array =
+  // full offset, function = per frame) — same contract as glow-sphere.js.
+  // Lets sparks sit above a fire, smoke above a city.
+  offsetMeters = null,
   // Fade out once the field falls outside the renderable band. On by default:
   // a layer sized in fixed metres (a protoplanetary disc, a galaxy) is left
   // behind by the scale law, and without this it does not vanish — it becomes
@@ -133,6 +137,13 @@ export function particleField({
         : radiusMeters ?? rebase.frameMeters();
       const s = rebase.toWorld(meters) * (typeof scaleBias === 'function' ? scaleBias({ u, local }) : scaleBias);
       group.scale.setScalar(s);
+      if (offsetMeters !== null) {
+        const raw = typeof offsetMeters === 'function'
+          ? offsetMeters({ u, local, rebase, t })
+          : offsetMeters;
+        const [ox, oy, oz] = Array.isArray(raw) ? raw : [raw, 0, 0];
+        group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
+      }
       if (spin) group.rotation.y = t * spin;
       mat.uniforms.uTime.value = t;
       const w = respectBand ? rebase.weight(meters) : 1;

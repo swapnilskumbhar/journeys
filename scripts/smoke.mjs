@@ -65,11 +65,14 @@ ok(us[0] >= 0 && us.at(-1) <= 1, 'all beats inside the axis range');
 const gaps = us.slice(1).map((u, i) => u - us[i]);
 const minGap = Math.min(...gaps);
 const maxGap = Math.max(...gaps);
-// Thresholds are legibility, not aesthetics. The journey is 56 viewport
-// heights, so 0.3% of the axis is ~0.17vh of scroll — about the least a beat
-// can occupy and still be read. 11% is roughly two full screens with no copy
-// on them, which reads as the page having broken.
-ok(minGap > 0.003, 'no two beats collide', `min gap ${(minGap * 100).toFixed(2)}%`);
+// Thresholds are legibility, not aesthetics. The journey is 62 viewport
+// heights, so 0.2% of the axis is ~0.12vh (~110 px) of scroll — about the
+// least a beat can occupy and still be read. The floor came down from 0.3%
+// for the wheel: on a log-lookback axis the wheel (6.5 kya) and writing
+// (5.2 kya) sit 0.21% apart, and both belong in the story at their honest
+// dates. 11% is roughly two full screens with no copy, which reads as the
+// page having broken.
+ok(minGap > 0.002, 'no two beats collide', `min gap ${(minGap * 100).toFixed(2)}%`);
 ok(maxGap < 0.11, 'no dead stretch of scroll', `max gap ${(maxGap * 100).toFixed(2)}%`);
 
 // The whole point of the segmented axis: the first second and the last

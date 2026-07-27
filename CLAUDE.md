@@ -91,10 +91,30 @@ launch pad → Mars.
 
 ## Status (2026-07-27)
 
-**`big-bang` ships** — 38 beats, Planck epoch to today, its own lazy chunk.
-The engine has now been exercised against real content and held up; four
-archetypes cover the whole journey with no bespoke Three.js in the journey
-folder.
+**`big-bang` ships** — 39 beats, Planck epoch to today, its own lazy chunk.
+The zoom does not stop at Earth: after the K–Pg beat the same dive that went
+cosmic-web → galaxy → disc continues to the ground — a campfire on the savanna
+(300 m frame), firelight spreading across a night aerial for Out of Africa,
+fields, a lamplit village for the wheel, the first city for writing, the
+electrified industrial city — then pulls back to orbit so "Today" ends on the
+night-lit planet. Six archetypes (particleField, glowSphere, filaments, planet,
+**terrain**, **blocks**) cover all of it with no bespoke Three.js in the
+journey folder.
+
+Surface-era lessons, in addition to the exposure ones below:
+
+- **Lights read at any scale; geometry does not.** A 4 m hut is sub-pixel in a
+  1.5 km frame. Every settlement is sold by a warm point-field (lamps) plus a
+  block field that only needs to read as texture — same trick as the Out of
+  Africa fire constellation. Never fix this by inflating building sizes.
+- **Key ground visibility on the FRAME, not on u.** The terrain fades in below
+  ~1.1e6 m frames and out above; Earth fades on the rebase band at almost the
+  same widths, so orbit↔surface hand-offs cost nothing and the fall is never a
+  black screen.
+- **The terrain plane is square.** Its rim must alpha-fade to a circle or the
+  corners read as a dark sheet during the pull-back.
+- `patch` is a GLSL reserved word. Shader compiles fail with a one-word hint
+  three lines away from the actual problem.
 
 Things the first journey taught, which the next one should not relearn:
 

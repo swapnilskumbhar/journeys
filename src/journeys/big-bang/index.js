@@ -54,7 +54,42 @@ const SCALE = [
   // edge, and the copy panel's pan pushes it further out.
   [uAt(ago(4.45e9)), 3.2e7],
   [uAt(ago(4.4e9)), 1.7e7], // Earth fills the frame
-  [1, 1.45e7],
+
+  // --- the descent -----------------------------------------------------------
+  // The zoom does not stop at Earth. After the asteroid, the same dive that
+  // went cosmic-web → galaxy → disc continues: orbit → aerial savanna → a
+  // campfire at 300 m. Ground level holds through the whole human story, then
+  // the final gap pulls back out to orbit so "Today" ends where "Oceans" was —
+  // same planet, now with city lights.
+  [uAt(ago(60e6)), 1.7e7],
+  [uAt(ago(22e6)), 1.1e6],
+  [uAt(ago(8.5e6)), 3.0e4],
+  [uAt(ago(6.2e6)), 2.2e4],  // aerial hold: the split from chimpanzees
+  [uAt(ago(5.5e6)), 2.0e4],
+  [uAt(ago(2.0e6)), 280],    // the fall to the fire
+  [uAt(ago(1.1e6)), 260],
+  [uAt(ago(330e3)), 600],    // wider: three camps
+  [uAt(ago(240e3)), 640],
+  [uAt(ago(80e3)), 1.4e4],   // night aerial: firelight spreading
+  [uAt(ago(50e3)), 1.5e4],
+  [uAt(ago(13.5e3)), 3.2e3], // fields
+  [uAt(ago(10e3)), 3.0e3],
+  // Settlement frames are tight — a 4 m hut at a 1.5 km frame is sub-pixel,
+  // so the village gets 750 m and the first city 900 m; the lamp layers do
+  // the rest of the work of making them read.
+  [uAt(ago(6.9e3)), 850],
+  [uAt(ago(5.9e3)), 750],
+  [uAt(ago(5.35e3)), 900],
+  [uAt(ago(4.2e3)), 1.0e3],
+  [uAt(ago(500)), 5.5e3],    // the industrial city
+  [uAt(ago(270)), 7.0e3],
+  [uAt(ago(120)), 7.5e3],
+  // The pull-back transits the awkward middle distances fast: between the
+  // city (10^4 m) and the globe (10^7 m) there is nothing to look at but the
+  // dark flank of the planet, so those decades get the least scroll.
+  [uAt(ago(45)), 4.0e5],
+  [uAt(ago(12)), 6.0e6],
+  [1, 1.9e7],                // in orbit for Today
 ];
 
 // Horizontal framing. The copy panel owns the lower left of every frame, so
@@ -96,17 +131,31 @@ const CAM = [
   [uAt(ago(4.568e9)), [0, 1.9, 6.2]],
   [uAt(ago(4.51e9)), [0, 0.9, 6.4]],
   [uAt(ago(4.2e9)), [0, 0.55, 6.0]],
-  [1, [0, 0.45, 5.8]],
+  // Surface work. Altitude is what changes: high and oblique for the aerials
+  // (the hominin split, the firelight migration), low — a few dozen metres at
+  // the current frame scale — for the campfire and the streets of the first
+  // city, back up for the industrial skyline, then out to orbit.
+  [uAt(ago(70e6)), [0, 0.5, 6.0]],
+  [uAt(ago(20e6)), [0, 2.0, 6.3]],
+  [uAt(ago(6.5e6)), [0, 2.4, 6.4]],
+  [uAt(ago(2.0e6)), [0, 0.42, 6.2]],
+  [uAt(ago(300e3)), [0, 0.55, 6.1]],
+  [uAt(ago(70e3)), [0, 2.5, 6.3]],
+  [uAt(ago(12e3)), [0, 1.5, 6.2]],
+  [uAt(ago(6.5e3)), [0, 0.62, 6.1]],
+  [uAt(ago(5.0e3)), [0, 0.5, 6.15]],
+  [uAt(ago(300)), [0, 1.35, 6.6]],
+  [1, [0, 0.5, 5.9]],
 ];
 
 export default defineJourney({
   ...meta,
   axis: axisDef,
-  // Viewport-heights of scroll. At 37 beats this averages ~1.5 each, which is
-  // what keeps the tightest legitimate clusters (the Ediacaran and the
-  // Cambrian are genuinely 60 million years apart) readable rather than a
-  // flicker. scripts/smoke.mjs enforces the floor.
-  length: 56,
+  // Viewport-heights of scroll. At 39 beats this averages ~1.6 each, which is
+  // what keeps the tightest legitimate clusters (the wheel and writing are
+  // genuinely 1,300 years apart) readable rather than a flicker.
+  // scripts/smoke.mjs enforces the floor.
+  length: 62,
   stageOptions: {
     background: 0x010206,
     // A zero threshold blooms everything including the dim points, which is

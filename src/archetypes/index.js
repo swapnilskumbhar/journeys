@@ -9,4 +9,6 @@ export { particleField } from './particle-field.js';
 export { glowSphere } from './glow-sphere.js';
 export { filaments } from './filaments.js';
 export { planet } from './planet.js';
+export { terrain } from './terrain.js';
+export { blocks } from './blocks.js';
 export { pointsMaterial, rng, gaussian } from './points-material.js';
