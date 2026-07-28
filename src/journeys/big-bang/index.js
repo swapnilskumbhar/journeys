@@ -131,40 +131,69 @@ const SCALE = [
   [uAt(ago(65.4e6)), 7.0e4],
   // …then settle back down and STAY down. The old table climbed to 1.1e6 here
   // because it was arriving from orbit.
-  [uAt(ago(56e6)), 4.5e4],
-  [uAt(ago(46e6)), 2.2e4],
+  [uAt(ago(56e6)), 2.6e4],
+  // Down to 5 km for the recovery. The ground is a 30 km disc, and a frame
+  // wider than about a fifth of that puts its EDGE inside the view — which
+  // renders as a hilltop dome with the sky wrapping under it, not as a
+  // landscape. Roughly: keep the frame under a sixth of the terrain radius.
+  [uAt(ago(46e6)), 7.0e3],
 
   // --- the descent -----------------------------------------------------------
   // Ground level holds through the whole human story, then the final gap pulls
   // back out to orbit so "Today" ends where "Oceans" was — same planet, now
   // with city lights.
-  [uAt(ago(22e6)), 1.6e4],
-  [uAt(ago(8.5e6)), 3.0e4],
-  [uAt(ago(6.2e6)), 2.2e4],  // aerial hold: the split from chimpanzees
-  [uAt(ago(5.5e6)), 2.0e4],
-  [uAt(ago(2.0e6)), 280],    // the fall to the fire
-  [uAt(ago(1.1e6)), 260],
-  [uAt(ago(330e3)), 600],    // wider: three camps
-  [uAt(ago(240e3)), 640],
+  [uAt(ago(22e6)), 5.0e3],
+  [uAt(ago(8.5e6)), 6.0e3],
+  // Down to EYE LEVEL for the hominin beats. These used to be aerials at 2e4 m,
+  // where a tree is sub-pixel and a person is a fifth of one — which is why
+  // "A branch splits", a beat about upright apes, was an empty field at night.
+  //
+  // The visible width is ~2.6× frameMeters (the camera sits 6 units out with a
+  // 55° FOV on a 16:9 frame), so 60 m here means about 160 m across: a 1.7 m
+  // figure is 15 px and a 10 m tree is 90. That is the scale at which a
+  // silhouette reads as a body rather than as a speck.
+  [uAt(ago(6.4e6)), 62],     // woodland: the split from chimpanzees
+  [uAt(ago(2.6e6)), 55],     // held across the beat
+  [uAt(ago(1.9e6)), 70],     // the fire
+  [uAt(ago(700e3)), 66],
+  // "Us" is a beat about PEOPLE — several kinds of human alive at once — so it
+  // stays at the scale a person reads at. At 220 m it sat in the dead zone
+  // between the two terrains, past the trees and past the figures, and rendered
+  // as three dots of firelight on a black plain.
+  [uAt(ago(330e3)), 78],     // wider: three camps
+  [uAt(ago(120e3)), 88],
   [uAt(ago(80e3)), 1.4e4],   // night aerial: firelight spreading
   [uAt(ago(50e3)), 1.5e4],
-  [uAt(ago(13.5e3)), 3.2e3], // fields
-  [uAt(ago(10e3)), 3.0e3],
+  [uAt(ago(13.5e3)), 2.2e3], // fields
+  [uAt(ago(10e3)), 1.9e3],
   // Settlement frames are tight — a 4 m hut at a 1.5 km frame is sub-pixel,
   // so the village gets 750 m and the first city 900 m; the lamp layers do
   // the rest of the work of making them read.
-  [uAt(ago(6.9e3)), 850],
-  [uAt(ago(5.9e3)), 750],
-  [uAt(ago(5.35e3)), 900],
-  [uAt(ago(4.2e3)), 1.0e3],
+  // Settlement frames are tight, and 750 m was still not tight enough: a 4 m
+  // mud-brick hut is four pixels there, so "The wheel" rendered as an empty
+  // hazy plain. At 430 m the village reads as built ground with structures on
+  // it — the lesson from the lamps, applied to the geometry they sit on.
+  [uAt(ago(6.9e3)), 520],
+  [uAt(ago(5.9e3)), 430],
+  [uAt(ago(5.35e3)), 500],
+  // HELD on the first city to 1.1 kyr. "Writing" runs 5.2 kyr → 260 yr, so its
+  // midpoint is ~1.35 kyr, and the old table was already at 2.7 km by then —
+  // far enough out that the mud-brick city was a smudge of lamplight and the
+  // foreground was all field parcels.
+  [uAt(ago(1.1e3)), 700],
   [uAt(ago(500)), 5.5e3],    // the industrial city
   [uAt(ago(270)), 7.0e3],
-  [uAt(ago(120)), 7.5e3],
-  // The pull-back transits the awkward middle distances fast: between the
-  // city (10^4 m) and the globe (10^7 m) there is nothing to look at but the
-  // dark flank of the planet, so those decades get the least scroll.
-  [uAt(ago(45)), 4.0e5],
-  [uAt(ago(12)), 6.0e6],
+  // HELD on the city to 45 years ago. "Machines" runs from 260 to 8 years ago,
+  // so its own midpoint is ~54 years — and the pull-back used to start at 45,
+  // which put the beat's middle at a 250 km frame with the city a nine-hundredth
+  // of a unit across. The industrial revolution rendered as a black starfield
+  // with one glowing dot in it.
+  [uAt(ago(45)), 7.5e3],
+  // The pull-back transits the awkward middle distances fast: between the city
+  // (10^4 m) and the globe (10^7 m) there is nothing to look at but the dark
+  // flank of the planet, so those years get the least scroll.
+  [uAt(ago(20)), 8.0e4],
+  [uAt(ago(9)), 6.0e6],
   [1, 1.9e7],                // in orbit for Today
 ];
 

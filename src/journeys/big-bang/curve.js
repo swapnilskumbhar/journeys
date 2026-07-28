@@ -40,6 +40,28 @@ export function plin(keys, x) {
   return Array.isArray(a) ? a.map((v, i) => v + (b[i] - v) * s) : a + (b - a) * s;
 }
 
+// Lerp two packed 0xRRGGBB colours. Drives that change a scene's LIGHT over
+// time — a sky going from day to dusk, a horizon filling with smog — need this:
+// picking between two constants with a ternary switches the whole sky in one
+// frame, which is exactly the pop every envelope in this journey exists to
+// avoid.
+export function mixHex(a, b, t) {
+  const s = smooth(clamp01(t));
+  const r = ((a >> 16) & 255) + (((b >> 16) & 255) - ((a >> 16) & 255)) * s;
+  const g = ((a >> 8) & 255) + (((b >> 8) & 255) - ((a >> 8) & 255)) * s;
+  const bl = (a & 255) + ((b & 255) - (a & 255)) * s;
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl);
+}
+
+// Multiply a packed colour's brightness, clamped. For matching one layer's
+// output to another's when one of them adds light on top of a base colour.
+export function scaleHex(c, k) {
+  const r = Math.min(255, Math.round(((c >> 16) & 255) * k));
+  const g = Math.min(255, Math.round(((c >> 8) & 255) * k));
+  const b = Math.min(255, Math.round((c & 255) * k));
+  return (r << 16) | (g << 8) | b;
+}
+
 // Returns [valueBefore, valueAfter, tBetween]. Indexes without allocating —
 // these run several times per frame.
 function pick(keys, x) {

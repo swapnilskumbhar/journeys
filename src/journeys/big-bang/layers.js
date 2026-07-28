@@ -3,7 +3,7 @@ import {
   water, blob,
 } from '../../archetypes/index.js';
 import { AGE, YR, ago, after } from './time.js';
-import { band, plin, plog, smooth, clamp01 } from './curve.js';
+import { band, plin, plog, smooth, clamp01, mixHex, scaleHex } from './curve.js';
 
 // The visual stack. Every entry is an archetype plus parameters — no bespoke
 // Three.js anywhere in this file, which is rule 2 doing its job.
@@ -17,6 +17,75 @@ import { band, plin, plog, smooth, clamp01 } from './curve.js';
 export function makeLayers(uAt, tAt) {
   // years-before-present at a given u — the natural unit for the Earth phase
   const yaAt = (u) => (AGE - tAt(u)) / YR;
+
+  // Daylight through the surface era: 0 = night, 1 = noon. Defined ONCE and
+  // shared by the sky dome and the ground's own lighting, because the two
+  // disagreeing is the most illusion-breaking thing this era can do — and for
+  // a long time it did, since the ground was lit to 0.8 while there was no sky
+  // at all and every daylight beat rendered as midnight.
+  //
+  // The dips are editorial and deliberate: fire and the first lamps only read
+  // at low sun, and Out of Africa is a beat about firelight spreading across a
+  // dark continent, so it is the one that goes properly to night.
+  const dayAt = (ya) => clamp01(plin([
+    [58e6, 0.5], [30e6, 0.85], [2.4e6, 0.75], [1.9e6, 0.38],
+    [300e3, 0.42], [65e3, 0.06], [20e3, 0.55], [12e3, 0.92],
+    // The wheel and writing drop toward dusk: hearth- and lamplight are what
+    // say "inhabited" at settlement scale, and neither reads at noon.
+    [6.5e3, 0.58], [5.2e3, 0.42], [600, 0.6], [260, 0.5], [1, 0.55],
+  ], ya));
+
+  // The Permian–Mesozoic sky, on the same contract as skyAt below: the eruption
+  // clears, the world recovers for eighty million years, then the K–Pg snaps it
+  // dark again in what is, at this scale, an instant.
+  const trapsSkyAt = (ya) => {
+    const clear = clamp01(plin([[240e6, 0], [170e6, 1], [66.6e6, 1], [66.0e6, 0.1]], ya));
+    // Recovered, not cheerful — a bright horizon over a lit plain reads as an
+    // overexposed desert, which is the wrong note for the aftermath of the
+    // largest extinction there has been.
+    const horizon = mixHex(0x5a3320, 0x3d5460, clear);
+    return {
+      clear,
+      horizon,
+      top: mixHex(0x140f0c, 0x0e1b2e, clear),
+      bottom: scaleHex(horizon, 0.85),
+      seam: scaleHex(horizon, 0.85),
+      sunGain: 0.24 + clear * 0.16,
+      bandLift: 0.34 - clear * 0.16,
+    };
+  };
+
+  // The sky, as ONE function. The dome reads it, and so does every terrain's
+  // horizon haze — because a terrain is a finite disc, and where its rim ends
+  // it must have already become the colour of the sky behind it. Left to a
+  // constant, that rim draws a bright curved arc across the frame: a false
+  // horizon, sitting above the real one, which is exactly what appeared the
+  // moment this era stopped being rendered against black.
+  const skyAt = (ya) => {
+    const day = dayAt(ya);
+    // Coal. The copy for "Machines" is about burning it at scale, and a brown
+    // horizon is what that looked like from inside the city.
+    const smog = clamp01(plin([[400, 0], [180, 0.75], [60, 0.6], [1, 0.4]], ya));
+    const horizon = mixHex(mixHex(0x131a28, 0xc7a479, day), 0x8d6a44, smog * 0.7);
+    const bandLift = 0.16 + day * 0.14;
+    return {
+      day,
+      horizon,
+      bandLift,
+      top: mixHex(mixHex(0x05070e, 0x27578f, day), 0x3b342a, smog * 0.55),
+      // The dome's lower hemisphere is NOT dark, and that is deliberate. The
+      // ground only ever ends where its disc runs out, which from altitude is
+      // well above the true horizon — so whatever is painted below the horizon
+      // is what shows in that gap. Dark there drew a bright rim against a black
+      // band: a glowing dome edge across the middle of every aerial beat.
+      // Ground rim and sky below it are now the same colour, so the seam has
+      // nothing to show.
+      bottom: scaleHex(horizon, 0.85),
+      sunGain: 0.1 + day * 0.42,
+      seam: scaleHex(horizon, 0.85),
+      light: mixHex(0xffb277, 0xffe0b4, day),
+    };
+  };
 
   const L = (id, fromT, toT, build) => ({ id, from: uAt(fromT), to: uAt(toT), build });
 
@@ -968,13 +1037,17 @@ export function makeLayers(uAt, tAt) {
     L('shore-water', ago(482e6), ago(330e6), () =>
       water({
         radiusMeters: 300,
-        levelMeters: ({ u }) => plin([[480e6, 5.2], [452e6, 3.6], [420e6, 2.4], [360e6, 1.2]], yaAt(u)),
+        // Drops faster than it used to. The beat's own midpoint is 446 Myr, and
+        // with the old curve that landed mid-crossing — the frame all water and
+        // all sky, both the same pale blue, which is why this beat read as fog.
+        // It now lands on the SHORE, which is what the beat is about.
+        levelMeters: ({ u }) => plin([[480e6, 5.4], [460e6, 3.2], [448e6, 1.4], [420e6, 0.5], [360e6, 0.2]], yaAt(u)),
         waveMeters: 0.14,
         wavelengthMeters: 4,
         chop: 1.2,
         segments: 200,
-        deep: 0x123244,
-        sky: 0x8fb0c8,
+        deep: 0x0b2231,
+        sky: 0x6f8ea6,
         below: 0x0b1f2c,
         windowColor: 0xa8cfe4,
         sunColor: 0xffeccb,
@@ -987,18 +1060,20 @@ export function makeLayers(uAt, tAt) {
     L('shore-reeds', ago(462e6), ago(300e6), () =>
       silhouette({
         kind: 'reed',
-        count: 90,
+        count: 150,
         variants: 6,
         seed: 73,
-        areaMeters: 55,
-        heightMeters: [0.5, 2.2],
-        centreClear: 6,
-        nearFadeMeters: 9,
+        areaMeters: 70,
+        heightMeters: [0.5, 2.4],
+        centreClear: 5,
+        nearFadeMeters: 8,
         sway: 0.05,
         color: 0x0b1410,
         rim: 0x5c7a58,
+        // Arriving with the waterline, not thirty million years after it — the
+        // shore has to have something standing on it the moment it appears.
         opacity: ({ u, local }) =>
-          band(local, 0.05, 0.16, 0.88, 0.98) * plin([[460e6, 0], [430e6, 1], [330e6, 0.6]], yaAt(u)),
+          band(local, 0.05, 0.16, 0.88, 0.98) * plin([[466e6, 0], [444e6, 1], [330e6, 0.6]], yaAt(u)),
       })),
     // …then the first forests. Archaeopteris, the Devonian tree that built the
     // first real soils — which is why the beat says oxygen climbs steeply.
@@ -1040,21 +1115,7 @@ export function makeLayers(uAt, tAt) {
         sunSoft: 0.03,
         sunGain: 0.3,
         bandLift: 0.5,
-        drive: ({ u }) => {
-          const ya = yaAt(u);
-          // Snaps dark fast at the K–Pg: the impact darkens the sky in a human
-          // lifetime, not over three million years.
-          const clear = clamp01(plin([[240e6, 0], [170e6, 1], [66.6e6, 1], [66.0e6, 0.1]], ya));
-          return {
-            // Recovered, not cheerful. A bright horizon band over a lit plain
-            // read as an overexposed desert, which is the wrong note for the
-            // eighty million years after the largest extinction there has been.
-            top: clear > 0.5 ? 0x0e1b2e : 0x140f0c,
-            horizon: clear > 0.5 ? 0x3d5460 : 0x5a3320,
-            sunGain: 0.24 + clear * 0.16,
-            bandLift: 0.5 - clear * 0.24,
-          };
-        },
+        drive: ({ u }) => trapsSkyAt(yaAt(u)),
         opacity: ({ local }) => band(local, 0.04, 0.14, 0.9, 0.98),
       })),
     L('traps-ground', ago(268e6), ago(48e6), () =>
@@ -1074,6 +1135,7 @@ export function makeLayers(uAt, tAt) {
         surface: ({ u }) => {
           const ya = yaAt(u);
           return {
+            haze: trapsSkyAt(ya).seam,
             lava: plin([[268e6, 0], [255e6, 1], [246e6, 0.9], [200e6, 0]], ya),
             // Life comes back — ten million years, as the copy says — and then
             // the K–Pg strips it again.
@@ -1119,6 +1181,31 @@ export function makeLayers(uAt, tAt) {
         color: 0x080605,
         rim: 0x7a3a18,
         opacity: ({ local }) => band(local, 0.06, 0.2, 0.8, 0.95) * 0.9,
+      })),
+
+    // Forest, as TEXTURE. At a five-to-twenty-kilometre frame an individual
+    // tree is a fraction of a pixel, so the Mesozoic and the Paleogene recovery
+    // cannot be populated the way the savanna beats are. A dark point field
+    // lying on the ground reads as canopy at exactly the scales where geometry
+    // does not — the inverse of the trick the settlement lamps use, and the
+    // difference between "a world" and "a bare plain".
+    L('forest-cover', ago(200e6), ago(9e6), () =>
+      particleField({
+        count: 5000,
+        distribution: 'disk',
+        thickness: 0.0015,
+        seed: 167,
+        blending: 'normal',
+        colorA: 0x1b2a18,
+        colorB: 0x0d1610,
+        colorMode: 'random',
+        size: 10,
+        maxSize: 26,
+        radiusMeters: ({ rebase }) => rebase.frameMeters() * 2.4,
+        respectBand: false,
+        opacity: ({ u, local }) =>
+          band(local, 0.03, 0.12, 0.9, 0.99)
+          * plin([[180e6, 0.75], [67e6, 0.75], [65e6, 0.05], [40e6, 0.5], [12e6, 0.6]], yaAt(u)),
       })),
 
     // --- ten kilometres of rock ----------------------------------------------
@@ -1196,6 +1283,28 @@ export function makeLayers(uAt, tAt) {
     // One terrain serves the whole surface era; its ground cover, field
     // patchwork, urban centre and sun level are all driven by years-before-
     // present, the same pattern the planet uses for geological time.
+    // THE SKY. There was none — from 48 Myr ago to the end of the journey every
+    // beat rendered against the black stage with a starfield on it. A savanna at
+    // noon, a wheat field, an industrial city and a night camp all came out as
+    // the same dark empty plain, which is most of why this whole stretch read as
+    // unfinished. One dome, driven through the era, fixes all of them at once.
+    //
+    // `day` is the same curve the ground's own sun level follows, so light and
+    // sky can never disagree — the failure mode being a lit landscape under a
+    // midnight sky, or the reverse.
+    L('surface-sky', ago(58e6), ago(1.2), () =>
+      backdrop({
+        radiusFrames: 7,
+        sunDir: [0.72, 0.24, -0.48],
+        sunSize: 0.9975,
+        sunSoft: 0.006,
+        drive: ({ u }) => skyAt(yaAt(u)),
+        // Out at the top: the final pull-back leaves the atmosphere, and a sky
+        // dome has no business being on screen once Earth is a globe again.
+        opacity: ({ local, rebase }) =>
+          band(local, 0.02, 0.07) * clamp01((1.6e5 - rebase.frameMeters()) / 1.0e5),
+      })),
+
     // Starts at 55 Myr rather than 30, to take the hand-off from the Mesozoic
     // ground before it has finished fading — otherwise the second half of the
     // K–Pg beat has no ground at all.
@@ -1218,39 +1327,144 @@ export function makeLayers(uAt, tAt) {
           // fall from orbit is never a black screen — there is always either a
           // dissolving planet or an approaching land haze in view.
           const lift = f > 6e4 ? Math.max(0, 1 - (f - 6e4) / 1.05e6) : 1;
-          return band(local, 0.005, 0.02) * lift;
+          // …and yields at the bottom to the woodland ground below ~500 m. This
+          // terrain is 30 km across with 1.3 km relief features; at an intimate
+          // frame it is a single flat colour, which is the same defect the
+          // seafloor had.
+          const close = clamp01((f - 320) / 260);
+          return band(local, 0.005, 0.02) * lift * close;
         },
         surface: ({ u }) => {
           const ya = yaAt(u);
+          const sky = skyAt(ya);
           return {
             cover: plin([[30e6, 0.45], [2e6, 0.55], [12e3, 0.62], [5e3, 0.5], [260, 0.42], [1, 0.4]], ya),
             fields: plin([[14e3, 0], [10e3, 0.7], [6e3, 0.92], [600, 0.85], [120, 0.5], [1, 0.35]], ya),
             urban: plin([[6.4e3, 0], [5.2e3, 0.6], [900, 0.65], [260, 0.85], [1, 0.92]], ya),
-            // dusk-forward light: fire and the first cities read at low sun,
-            // and a black sky over broad daylight would read as a bug
-            sun: plin([[30e6, 0.9], [2.4e6, 0.55], [1.9e6, 0.38], [300e3, 0.42], [65e3, 0.3],
-                       [20e3, 0.55], [12e3, 0.8], [6.5e3, 0.68], [5.2e3, 0.55], [600, 0.5], [260, 0.42], [1, 0.4]], ya),
+            sun: sky.day,
+            haze: sky.seam,
+            lightColor: sky.light,
             // the level plain grows with the settlement that stands on it
             flatten: plin([[30e6, 600], [9e3, 900], [5.5e3, 1500], [3e3, 1800], [600, 5000], [280, 7000], [1, 7000]], ya),
           };
         },
       })),
 
+    // --- woodland, at eye level ----------------------------------------------
+    // The hominin beats happen at 40–200 m frames, and the 30 km savanna ground
+    // cannot serve them: its relief features are 1.3 km and its colour
+    // wavelengths hundreds of metres, so close up it is one flat brown sheet.
+    // A second, small terrain takes over below ~500 m — the same split the
+    // seafloor already uses, for the same reason.
+    L('woodland-ground', ago(7.2e6), ago(88e3), () =>
+      terrain({
+        radiusMeters: 900,
+        ampMeters: 5,
+        featureMeters: 120,
+        flattenMeters: 200, // must cover the tree and figure scatter — they stand at y=0
+        seed: 131,
+        rock: 0x483f31,
+        dry: 0x6d5f3e,
+        lightDir: [0.7, 0.3, 0.5],
+        segments: 220,
+        surface: ({ u }) => {
+          const ya = yaAt(u);
+          const sky = skyAt(ya);
+          return {
+            sun: sky.day,
+            cover: plin([[7e6, 0.6], [2e6, 0.5], [300e3, 0.45]], ya),
+            haze: sky.seam,
+            lightColor: sky.light,
+            fields: 0,
+            urban: 0,
+          };
+        },
+        opacity: ({ local, rebase }) =>
+          band(local, 0.02, 0.08, 0.93, 0.99) * clamp01((580 - rebase.frameMeters()) / 260),
+      })),
+    // Open woodland — the habitat the split actually happened in. Trees are the
+    // only thing at this scale that gives the frame depth: without them a
+    // savanna is an empty plane no matter how well it is lit.
+    L('woodland-trees', ago(7.0e6), ago(92e3), () =>
+      silhouette({
+        kind: 'tree',
+        count: 80,
+        variants: 6,
+        seed: 137,
+        areaMeters: 130,
+        heightMeters: [3.5, 12],
+        centreClear: 16,
+        nearFadeMeters: 22,
+        sway: 0.015,
+        color: 0x0c120e,
+        rim: 0x6d7a4e,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.03, 0.12, 0.9, 0.99) * clamp01((520 - rebase.frameMeters()) / 240),
+      })),
+    // …and the subject of the beat. "There is no first human" — so they are a
+    // scattered group, not a posed pair, and they are silhouettes because at
+    // twenty-odd pixels tall the upright STANCE is the only thing that carries
+    // and the only thing the science actually claims.
+    L('hominins', ago(6.7e6), ago(1.5e6), () =>
+      silhouette({
+        kind: 'figure',
+        count: 6,
+        variants: 5,
+        seed: 139,
+        // Scattered from 9 m to 40 m out. The camera sits ~62 m from the origin
+        // at this frame, so the near half of the group lands 25–50 m away and
+        // reads at 30–60 px, while the far half stays small and gives the group
+        // depth. A scatter centred further out is uniformly too small.
+        areaMeters: 55,
+        heightMeters: [1.3, 1.6],
+        centreClear: 8,
+        nearFadeMeters: 18,
+        color: 0x090d0b,
+        rim: 0x93a06a,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.06, 0.2, 0.88, 0.98) * clamp01((260 - rebase.frameMeters()) / 140),
+      })),
+    // The people around the fire, from Homo erectus through to the camps of the
+    // "Us" beat. Same archetype, taller and more of them.
+    L('people', ago(2.1e6), ago(92e3), () =>
+      silhouette({
+        kind: 'figure',
+        variants: 5,
+        seed: 149,
+        // Scattered wide, not tight around the fire. The camera is ~130 m from
+        // the origin at these frames, so distance from the ORIGIN barely changes
+        // a figure's size — what changes it is landing on the camera's side of
+        // the scatter, and that needs the scatter to be big enough to reach.
+        count: 14,
+        areaMeters: 85,
+        heightMeters: [1.45, 1.8],
+        centreClear: 6,
+        nearFadeMeters: 26,
+        color: 0x0a0806,
+        rim: 0xc27a3a, // lit by the fire, not by the sky
+        opacity: ({ local, rebase }) =>
+          band(local, 0.05, 0.16, 0.9, 0.98) * clamp01((300 - rebase.frameMeters()) / 160),
+      })),
+
     // Fire — the literal beat subject, at human scale: a hearth glow plus a
     // column of drifting sparks. It burns from Homo erectus through the
     // 300 kya "Us" beat (two more camps join) and is what the "Out of Africa"
     // aerial then multiplies into a constellation.
-    L('fire-glow', ago(2.3e6), ago(110e3), () =>
+    // Sized for a ~45 m frame, not the 260 m one these were written for: a
+    // hearth is about a metre across, and at the old numbers the "campfire" was
+    // a seven-metre ball of light with a sixty-metre halo — which read fine as
+    // an abstract glow and not at all as a fire people are sitting around.
+    L('fire-glow', ago(2.3e6), ago(95e3), () =>
       glowSphere({
-        radiusMeters: 7,
-        offsetMeters: [0, 4, 0],
+        radiusMeters: 1.5,
+        offsetMeters: [0, 0.9, 0],
         color: 0xffc27a,
         haloColor: 0xff9a40,
-        haloScale: 9,
+        haloScale: 7,
         opacity: ({ local, t }) =>
           band(local, 0.03, 0.1, 0.9, 0.98) * (0.78 + 0.16 * Math.sin(t * 6.3) + 0.06 * Math.sin(t * 17.1)),
       })),
-    L('fire-sparks', ago(2.3e6), ago(110e3), () =>
+    L('fire-sparks', ago(2.3e6), ago(95e3), () =>
       particleField({
         count: 130,
         distribution: 'ball',
@@ -1261,22 +1475,22 @@ export function makeLayers(uAt, tAt) {
         maxSize: 6,
         jitter: 0.06,
         twinkle: 0.9,
-        radiusMeters: 12,
-        offsetMeters: [0, 9, 0],
+        radiusMeters: 2.6,
+        offsetMeters: [0, 2.2, 0],
         opacity: ({ local }) => band(local, 0.03, 0.1, 0.9, 0.98) * 0.9,
       })),
-    L('camp-2', ago(600e3), ago(110e3), () =>
+    L('camp-2', ago(600e3), ago(95e3), () =>
       glowSphere({
-        radiusMeters: 4,
-        offsetMeters: [110, 3, -60],
+        radiusMeters: 1.1,
+        offsetMeters: [46, 0.8, -26],
         color: 0xffb46a,
         haloScale: 6,
         opacity: ({ local, t }) => band(local, 0.05, 0.2, 0.9, 0.98) * (0.7 + 0.2 * Math.sin(t * 5.1 + 2)),
       })),
-    L('camp-3', ago(600e3), ago(110e3), () =>
+    L('camp-3', ago(600e3), ago(95e3), () =>
       glowSphere({
-        radiusMeters: 4,
-        offsetMeters: [-85, 3, 75],
+        radiusMeters: 1.1,
+        offsetMeters: [-38, 0.8, 33],
         color: 0xffb46a,
         haloScale: 6,
         opacity: ({ local, t }) => band(local, 0.05, 0.2, 0.9, 0.98) * (0.7 + 0.2 * Math.sin(t * 4.3 + 4)),

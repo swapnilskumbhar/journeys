@@ -135,17 +135,28 @@ const fragment = /* glsl */ `
     vec3 grass = mix(dry, green, uCover * (0.35 + 0.65 * mottle));
     vec3 col = mix(rock, grass, 0.45 + 0.55 * vnoise(wm / uFine));
 
-    // fields: a ring of ~130 m parcels around the settled centre. Only some
+    // Fields: a ring of ~130 m parcels around the settled centre. Only some
     // cells are farmed, so the patchwork has gaps like real land division.
+    //
+    // The grid is WARPED before it is cut into cells. Straight axis-aligned
+    // squares with a hard step between them rendered as a literal chessboard
+    // stretching to the horizon — the single most artificial thing in the
+    // journey. Real field boundaries follow contours and old paths, so a
+    // low-frequency warp plus softened edges is both truer and cheaper than
+    // any amount of colour tuning.
     float fieldRing = smoothstep(0.125, 0.10, vDist) * smoothstep(uFlatR * 0.55, uFlatR * 0.95, vDist);
-    vec2 cell = floor(wm / 130.0);
+    vec2 warp = vec2(vnoise(wm / 870.0), vnoise(wm / 640.0 + 13.0)) - 0.5;
+    vec2 fw = wm / 130.0 + warp * 1.7;
+    vec2 cell = floor(fw);
     float ch = hash(cell);
-    float farmed = step(1.0 - uFields * 0.85, ch) * uFields * fieldRing;
-    vec3 crop = mix(vec3(0.40, 0.30, 0.11), vec3(0.15, 0.215, 0.075), step(0.5, hash(cell + 7.0)));
-    vec2 cf = fract(wm / 130.0);
-    float border = smoothstep(0.0, 0.05, cf.x) * smoothstep(1.0, 0.95, cf.x)
-                 * smoothstep(0.0, 0.05, cf.y) * smoothstep(1.0, 0.95, cf.y);
-    col = mix(col, crop * (0.55 + 0.45 * border), farmed);
+    float farmed = smoothstep(1.0 - uFields * 0.9, 1.03 - uFields * 0.9, ch) * uFields * fieldRing;
+    vec3 crop = mix(vec3(0.34, 0.27, 0.12), vec3(0.16, 0.20, 0.09), step(0.5, hash(cell + 7.0)));
+    // …and each parcel carries its own tone, so neighbours never repeat exactly
+    crop *= 0.75 + 0.5 * hash(cell + 31.0);
+    vec2 cf = fract(fw);
+    float border = smoothstep(0.0, 0.10, cf.x) * smoothstep(1.0, 0.90, cf.x)
+                 * smoothstep(0.0, 0.10, cf.y) * smoothstep(1.0, 0.90, cf.y);
+    col = mix(col, crop * (0.62 + 0.38 * border), farmed);
 
     // built ground under the town
     float urbanZone = smoothstep(uFlatR * 0.9, uFlatR * 0.45, vDist);

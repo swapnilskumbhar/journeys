@@ -209,38 +209,43 @@ function dome(ctx, rand) {
 }
 
 function figure(ctx, rand) {
-  // A person, standing or mid-stride. Deliberately plain: at the frames this
-  // is used in a figure is 30–80 px tall, and any more detail is invisible.
-  const h = S * (0.72 + rand() * 0.2);
-  const stride = (rand() - 0.5) * 0.5;
-  const w = h * 0.052;
+  // A person, standing or mid-stride.
+  //
+  // Deliberately plain, and deliberately THICK. These land at 20–60 px tall,
+  // and at the original limb widths (h * 0.052) the torso was under two pixels
+  // — every hominin in the journey rendered as a faint scratch next to a tree.
+  // A silhouette that survives being small has to be drawn heavier than looks
+  // right at full size; the stance carries the meaning, not the anatomy.
+  const h = S * (0.74 + rand() * 0.2);
+  const stride = 0.55 + rand() * 0.75;
+  const w = h * 0.085;
 
   ctx.lineCap = 'round';
-  ctx.lineWidth = w * 1.5;
+  ctx.lineWidth = w * 1.6;
   // legs
   ctx.beginPath();
   ctx.moveTo(0, h * 0.45);
-  ctx.lineTo(h * 0.11 * stride, 0);
+  ctx.lineTo(h * 0.13 * stride, 0);
   ctx.moveTo(0, h * 0.45);
-  ctx.lineTo(-h * 0.11 * stride, 0);
+  ctx.lineTo(-h * 0.13 * stride, 0);
   ctx.stroke();
   // torso
-  ctx.lineWidth = w * 2.1;
+  ctx.lineWidth = w * 2.2;
   ctx.beginPath();
-  ctx.moveTo(0, h * 0.45);
-  ctx.lineTo(0, h * 0.8);
+  ctx.moveTo(0, h * 0.44);
+  ctx.lineTo(0, h * 0.79);
   ctx.stroke();
   // arms
-  ctx.lineWidth = w * 1.2;
+  ctx.lineWidth = w * 1.35;
   ctx.beginPath();
   ctx.moveTo(0, h * 0.76);
-  ctx.lineTo(-h * 0.1 * stride, h * 0.5);
+  ctx.lineTo(-h * 0.14 * stride, h * 0.48);
   ctx.moveTo(0, h * 0.76);
-  ctx.lineTo(h * 0.13 * stride, h * 0.52);
+  ctx.lineTo(h * 0.16 * stride, h * 0.5);
   ctx.stroke();
   // head
   ctx.beginPath();
-  ctx.ellipse(0, h * 0.88, h * 0.062, h * 0.072, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, h * 0.885, h * 0.085, h * 0.095, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
