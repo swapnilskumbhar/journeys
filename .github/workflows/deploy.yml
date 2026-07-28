@@ -1,15 +1,24 @@
 name: Deploy to GitHub Pages
 
-# `configure-pages` fails with "Get Pages site failed … Error: Not Found" until
-# the repository actually has Pages turned on — the build is fine, there is just
-# nothing to deploy TO. `enablement: true` below makes the action switch it on
-# via the API on the first run (it needs the `pages: write` permission granted
-# below), so this works from a clean repo with no manual setup.
+# FIRST-RUN SETUP, once, by hand:
+#   Settings → Pages → Build and deployment → Source: GitHub Actions
 #
-# If that step still 404s, Pages is unavailable for the repo rather than merely
-# off: GitHub Pages requires a PUBLIC repo on free plans. Either make the repo
-# public, or set the source by hand in Settings → Pages → Build and deployment
-# → Source: GitHub Actions.
+# Do not skip it on the strength of `enablement: true` below. Read the two
+# failures in order, because they are different problems:
+#
+#   "Get Pages site failed … Not Found"        → 404: Pages is not enabled.
+#   "Create Pages site failed … Resource not
+#    accessible by integration"                → 403: enabling was REFUSED.
+#
+# The second is not a workflow problem — `pages: write` is granted below, so the
+# token is asking correctly and being denied at the repo or plan level. Pages is
+# only available on private repos with Pro/Team/Enterprise; on a free plan the
+# repo has to be public. Setting the source by hand is also simply more
+# reliable than having GITHUB_TOKEN create the site.
+#
+# `enablement: true` stays because once Pages exists the action finds it on the
+# Get call and never attempts the Create — so it costs nothing here and saves
+# the setup step for anyone who forks this.
 
 on:
   push:
