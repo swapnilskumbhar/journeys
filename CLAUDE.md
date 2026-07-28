@@ -36,6 +36,13 @@ launch pad → Mars.
   `node scripts/shots.mjs <id> [outDir] [port] [--at=0.1,0.5] [--sheet]`.
   Default is one shot per beat, sampled mid-beat; `--sheet` emits
   `contact-sheet.png` (one image = whole-journey review).
+- Deployed URL shape — `node scripts/pages-check.mjs dist /journeys/`, after a
+  build. Serves `dist` with GitHub Pages' actual rules (exact file, directory
+  index, 301 on a missing trailing slash, `404.html` with a 404 status) and
+  checks the asset prefix, cold deep links and in-app nav. **Not `vite
+  preview`** — preview falls back to index.html for any unknown path, which is
+  precisely what Pages does not do, so a broken deep link passes there and 404s
+  in production.
 - Real scroll path — `node scripts/scroll-check.mjs`. Everything in shots.mjs
   drives `window.__u` directly, which bypasses scroll entirely; this is the only
   check that exercises document scroll → u, the wheel not being eaten by the
@@ -255,8 +262,35 @@ Things the first journey taught, which the next one should not relearn:
   happily pass while scrolling is broken; `scroll-check.mjs` caught an
   unreachable final beat and off-by-one ribbon navigation.
 
+## Deployment
+
+Target is **GitHub Pages at `swapnilskumbhar.github.io/journeys/`** — a project
+repo, so the site lives under a PREFIX, not at a domain root.
+
+- `SITE_BASE` and `SITE_ORIGIN` (set in `.github/workflows/deploy.yml`) are the
+  only two places the deployed location is written down. A custom domain later
+  is `SITE_BASE=/` plus a `public/CNAME`, and nothing else changes.
+- **Nothing may hardcode a leading `/`.** `src/routes.js` owns the URL shape;
+  links come from `hrefFor()` and route lookups from `slugAt()`. A hardcoded
+  root path is the same class of bug as a hardcoded world-space position — it
+  works where it was written and breaks where it ships. This cost the router,
+  both nav links, the canonical tags and the sitemap on the first pass.
+- **Dev stays at the root**, build and `vite preview` carry the prefix. The
+  review scripts drive `localhost:5175/<id>` directly and a dev-only prefix
+  would break all of them to prove nothing.
+- Deep links need no SPA rewrite: the prerender step emits `dist/<id>/index.html`
+  per journey, which a static host resolves as an ordinary file. That is the
+  payoff for rule 6 that was not obvious when it was written.
+- The prerender's head rewriting must not assume attributes are on one line.
+  `<meta name="description" …>` is wrapped across three in `index.html`, and a
+  literal one-line regex meant the description and og:description were never
+  substituted on any page — silently, because a regex that misses returns the
+  string unchanged. `setMeta()` warns instead.
+
+Left before this is actually live: Pages has to be switched to "GitHub Actions"
+as its source once by hand (Settings → Pages), and `/og/<id>.png` is referenced
+by every shell but never generated, so links unfurl without a card.
+
 Still to do: `export-video.mjs` / `make-narration.mjs` are the howitworks
 originals and still target `__hiw` + discrete step indices. Retargeting them to
-the `__u` scalar should be simpler than the original, not harder. Nothing is
-deployed yet — no host, no domain, no OG images (`/og/<id>.png` is referenced by
-the prerender step but not generated).
+the `__u` scalar should be simpler than the original, not harder.
