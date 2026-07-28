@@ -39,8 +39,10 @@ launch pad → Mars.
 - Real scroll path — `node scripts/scroll-check.mjs`. Everything in shots.mjs
   drives `window.__u` directly, which bypasses scroll entirely; this is the only
   check that exercises document scroll → u, the wheel not being eaten by the
-  canvas overlay, and ribbon tick navigation. Run it after touching player.js,
-  ribbon.js, or anything about layout.
+  canvas overlay, ribbon tick navigation, **ribbon drag-scrubbing** (tracks the
+  pointer, no drift after release) and **camera purity** (hold u, run three
+  virtual minutes past, assert the camera has not moved). Run it after touching
+  player.js, ribbon.js, or anything about layout.
 
 ## Map
 
@@ -91,6 +93,14 @@ launch pad → Mars.
    scroll otherwise; the stage reads `window.__vt`. A journey's visual state
    must be a pure function of `u` — no accumulated state, no wall-clock reads —
    or exported video will not be reproducible.
+   **The camera is handed no clock at all**, and `player.js` enforces that by
+   not passing one. Where the frame is, which way it faces and what it is aimed
+   at are `u` and nothing else, because the reader can arrive at any point from
+   any direction at any speed and must get the frame that beat was composed for.
+   Idle motion — drift, twinkle, flow — belongs to the LAYERS, which do get `t`.
+   A drag also lands whole: damping in the player smooths wheel jitter only, and
+   any jump over 1.2 vh is applied in one frame, so the frame never swims to
+   catch up with the pointer or keep travelling after it stops.
 9. **Verify with evidence, not vibes.** The build must pass, and screenshots
    must have been LOOKED AT before calling anything done. Framing, occlusion and
    copy-vs-visual truth are judged by eyes.
@@ -109,7 +119,33 @@ night-lit planet. Eleven archetypes (particleField, glowSphere, filaments,
 planet, terrain, blocks, backdrop, silhouette, **panel**, water, blob) cover
 all of it with no bespoke Three.js in the journey folder.
 
-Human-era lessons (beats 30–38), the most recent pass:
+Camera-determinism lesson, the most recent pass:
+
+- **The one thing that was not a function of `u` cost more than everything it
+  bought.** The camera bearing was `t * 0.035` — a slow idle orbit so a
+  stationary reader never saw a frozen frame. But every composition in the
+  journey is authored in WORLD space (`offsetMeters`, `lightDir`, `sunDir`,
+  which way the silhouettes face), all of it against a camera on +z. Measured:
+  same `u`, the Earth–Moon pair was **28° off at 45 s, 76° at 134 s**, and past
+  three minutes the Moon passed behind the planet it had just been thrown off.
+  So the frame you got for a beat depended on how long the tab had been open,
+  scrubbing to a beat did not reliably show you that beat, and two review shots
+  of one `u` were two different pictures — which quietly undermines rule 9 as
+  well as rule 8. The bearing is now an authored `AZIMUTH` table beside `CAM`,
+  `LOOK_Y` and `PAN`: it swings through the deep field, where plasma shells and
+  the cosmic web look the same from any side and turning is free parallax, and
+  holds at 0 from the protoplanetary disc onward. Idle motion was always the
+  layers' job — they have the clock.
+- **Damping is for wheel jitter, and nothing else.** One easing rule was serving
+  two gestures. On a drag it meant the frame swam through every scene in between
+  while the pointer was still down, then kept travelling after it came up. The
+  threshold is in **viewport-heights**, not in `u`, so it keeps its meaning when
+  a journey's length changes — the same lesson the pacing gate taught.
+- **`behavior: 'auto'` is not instant.** `html` carries `scroll-behavior:
+  smooth`, and `auto` defers to it, so a "non-smooth" scrub still animated the
+  page out from under the finger. `'instant'` is the keyword that means instant.
+
+Human-era lessons (beats 30–38):
 
 - **Every era needs the vh gate, not just the one where the bug was found.** The
   life era got per-beat segments and a 1.5 vh floor; the human era was left on a

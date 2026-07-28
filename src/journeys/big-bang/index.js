@@ -351,6 +351,43 @@ const CAM = [
   [1, [0, 0.5, 5.9]],
 ];
 
+// THE BEARING — degrees around the world Y axis. Every CAM row above has x=0,
+// so this is the only thing that decides which SIDE the frame is viewed from.
+//
+// It used to be `t * 0.035`: a slow orbit driven by the player's clock, so that
+// a reader who had stopped scrolling was never looking at a frozen frame. It
+// was the one thing in the journey that was not a function of u, and it cost
+// far more than it bought.
+//
+// Everything here is positioned in WORLD space — `offsetMeters` for the Moon,
+// `lightDir` on the planets, `sunDir` on every sky, which way the silhouettes
+// face. All of it is composed for a camera on +z. Swing the camera and it all
+// slides: the Earth–Moon pair was 28° off its framing after 45 seconds and 76°
+// after 134, and past three minutes the Moon passed behind the planet it had
+// just been thrown off. Which meant the frame you got for a beat depended on
+// how long the tab had been open — so scrubbing to a beat did not reliably show
+// you that beat, and two review shots of the same u were two different pictures.
+//
+// Idle motion is the layers' job. They get the clock; the plasma churns, the
+// water moves, the stars drift. The camera's job is to be where u says.
+//
+// So the bearing is authored, like the height and the pan. It swings through
+// the deep field, where there is nothing directional to break — plasma shells,
+// the cosmic web and a galaxy are the same picture from any side, and turning
+// through them is parallax for free. From the protoplanetary disc onward it
+// holds at 0, which is the bearing every scene from there to Today was built
+// for. A later beat that wants a three-quarter view asks for one here.
+const AZIMUTH = [
+  [uAt(1e-44), -16],
+  [uAt(3e14), -5],
+  [uAt(after(400e6)), 5],
+  [uAt(after(5e9)), 16],       // out across the cosmic web
+  [uAt(ago(5e9)), 9],
+  [uAt(ago(4.75e9)), 4],       // the galaxy, held a little off-axis
+  [uAt(ago(4.568e9)), 0],      // the disc — and dead ahead from here on
+  [1, 0],
+];
+
 export default defineJourney({
   ...meta,
   axis: axisDef,
@@ -369,12 +406,9 @@ export default defineJourney({
 
   scaleAt: (u) => plog(SCALE, u) / 4,
 
-  camera(u, cam, { t }) {
+  camera(u, cam) {
     const [x, y, z] = plin(CAM, u);
-    // A slow orbit so a stationary reader is never looking at a frozen frame.
-    // Driven by the player's accumulated clock, which the exporter replaces
-    // with a fixed-step virtual one, so renders stay reproducible.
-    const a = t * 0.035;
+    const a = (plin(AZIMUTH, u) * Math.PI) / 180;
     cam.position.set(x * Math.cos(a) + z * Math.sin(a), y, z * Math.cos(a) - x * Math.sin(a));
     cam.lookAt(0, plin(LOOK_Y, u), 0);
     // Pan AFTER aiming: sliding the camera left without re-aiming pushes the

@@ -142,7 +142,15 @@ body {
   height: 2px;
   background: rgb(255 255 255 / 0.12);
   cursor: pointer;
+  /* The track is a scrubber, so a touch drag along it must not also be read as
+     a page scroll — the browser would claim the gesture and the scrub would
+     never get a pointermove. */
+  touch-action: none;
 }
+.ribbon { user-select: none; }
+.ribbon.is-dragging .ribbon-track,
+.ribbon.is-dragging .ribbon-tick { cursor: grabbing; }
+.ribbon.is-dragging .ribbon-head { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; }
 .ribbon-track::before { content: ''; position: absolute; inset: -14px 0; } /* hit area */
 .ribbon-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
 .ribbon-head {

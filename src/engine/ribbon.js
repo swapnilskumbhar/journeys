@@ -42,17 +42,55 @@ export function createRibbon({ container, journey, onSeek }) {
     // inside the one that was clicked.
     const next = journey.beats[i + 1]?.u ?? 1;
     const target = Math.min(1, beat.u + (next - beat.u) * 0.2);
-    tick.addEventListener('click', () => onSeek(target));
+    // A tick is a jump to a NAMED place, so it keeps the smooth travel — the
+    // journey between two beats is worth seeing. Dragging is the opposite
+    // gesture and gets the opposite treatment, below.
+    tick.addEventListener('click', () => onSeek(target, { smooth: true }));
     ticksEl.appendChild(tick);
   });
 
-  // Clicking anywhere on the track seeks there — the ribbon behaves like a
-  // scrubber, which is what its shape promises.
-  el.querySelector('.ribbon-track').addEventListener('click', (e) => {
+  // --- scrubbing -----------------------------------------------------------
+  // Press anywhere on the track and the journey goes there; keep holding and it
+  // follows the pointer. The ribbon's shape promises a scrubber, and a scrubber
+  // that only accepts discrete clicks is a promise half kept.
+  //
+  // Every seek here is `smooth: false`. Easing is wrong for a drag twice over:
+  // the frame lags behind the finger, and it keeps travelling after the finger
+  // stops — so where you let go is not where you end up.
+  const track = el.querySelector('.ribbon-track');
+  let dragging = false;
+
+  const uAtPointer = (e) => {
+    const r = track.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  };
+
+  track.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    // Ticks are buttons living inside the track; let them keep their own click.
     if (e.target.classList.contains('ribbon-tick')) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    onSeek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)));
+    dragging = true;
+    el.classList.add('is-dragging');
+    // Capture, so the drag survives the pointer leaving the 2px-tall track —
+    // which it does immediately, because the thing being dragged is at the very
+    // bottom edge of the window.
+    track.setPointerCapture(e.pointerId);
+    e.preventDefault(); // no text selection, no native image-drag
+    onSeek(uAtPointer(e), { smooth: false });
   });
+
+  track.addEventListener('pointermove', (e) => {
+    if (dragging) onSeek(uAtPointer(e), { smooth: false });
+  });
+
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('is-dragging');
+    if (track.hasPointerCapture(e.pointerId)) track.releasePointerCapture(e.pointerId);
+  };
+  track.addEventListener('pointerup', endDrag);
+  track.addEventListener('pointercancel', endDrag);
 
   let lastActive = -1;
 

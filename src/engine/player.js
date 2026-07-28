@@ -4,6 +4,7 @@ import { makeRebaser } from './rebase.js';
 import { makeStreamer } from './stream.js';
 import { createRibbon } from './ribbon.js';
 import { clamp01 } from './axis.js';
+import { hrefFor } from '../routes.js';
 import * as kit from '../kit/index.js';
 
 // Mounts a journey and returns a destroy() handle.
@@ -20,7 +21,7 @@ export function mountJourney(journey, container) {
   container.innerHTML = `
     <div class="journey" style="--accent:${journey.accent ?? '#7cc4ff'}">
       <div class="canvas-holder"></div>
-      <a class="back-link" href="/">← all journeys</a>
+      <a class="back-link" href="${hrefFor()}">← all journeys</a>
       <header class="journey-hero">
         <p class="hero-kicker">a journey through</p>
         <h1>${journey.title}</h1>
@@ -54,7 +55,12 @@ export function mountJourney(journey, container) {
   const ribbon = createRibbon({
     container: container.querySelector('.ribbon-mount'),
     journey,
-    onSeek: (u) => window.scrollTo({ top: u * scrollRange(), behavior: 'smooth' }),
+    // `smooth: false` is a SCRUB — the frame must land under the pointer, now.
+    // 'instant', not 'auto': html carries `scroll-behavior: smooth`, and 'auto'
+    // defers to that, so a dragged scrub would animate the page out from under
+    // the finger it is supposed to be following.
+    onSeek: (u, { smooth = true } = {}) =>
+      window.scrollTo({ top: u * scrollRange(), behavior: smooth ? 'smooth' : 'instant' }),
   });
 
   const ctx = { rebase, axis: journey.axis, stage, THREE, kit };
@@ -123,20 +129,36 @@ export function mountJourney(journey, container) {
       const range = scrollRange();
       const y = window.scrollY;
       uTarget = y >= range - 2 ? 1 : clamp01(y / range);
-      // light damping so a flicked trackpad reads as travel, not a jump
-      u += (uTarget - u) * Math.min(1, dt * 9);
-      // Snap when close. An exponential approach never actually arrives, which
-      // left u at 0.9994 at the bottom of the page — so the final beat, sitting
-      // at exactly 1.0, could not be reached by scrolling at all.
-      // 1e-3 of the axis is ~0.06 viewport-heights of scroll here: far too small
-      // to see as a jump, and comfortably wider than the residual error left
-      // after the ramp has visually settled.
-      if (Math.abs(uTarget - u) < 1e-3) u = uTarget;
+      // Damping exists to smooth WHEEL JITTER, and only that. A drag — of the
+      // scrollbar or of the ribbon — moves the axis by whole screens between
+      // one frame and the next, and easing into that means the camera swims
+      // through every scene in between while the reader is still holding the
+      // pointer, then keeps moving after they let go. So a jump lands whole.
+      //
+      // The threshold is in viewport-heights, not in u, so it keeps its meaning
+      // when a journey's length changes: 1.2vh is far more than any wheel or
+      // trackpad delta and far less than any deliberate seek.
+      if (Math.abs(uTarget - u) * journey.length > 1.2) {
+        u = uTarget;
+      } else {
+        u += (uTarget - u) * Math.min(1, dt * 9);
+        // Snap when close. An exponential approach never actually arrives, which
+        // left u at 0.9994 at the bottom of the page — so the final beat, sitting
+        // at exactly 1.0, could not be reached by scrolling at all.
+        // 1e-3 of the axis is ~0.06 viewport-heights of scroll here: far too small
+        // to see as a jump, and comfortably wider than the residual error left
+        // after the ramp has visually settled.
+        if (Math.abs(uTarget - u) < 1e-3) u = uTarget;
+      }
     }
 
     rebase.setScale(journey.scaleAt(u, journey.axis));
     streamer.sync(u);
-    journey.camera?.(u, stage.camera, { ...ctx, t: elapsed });
+    // NO CLOCK HERE, deliberately — see the contract in journey.js. The camera
+    // gets u and nothing that changes on its own, so the viewpoint for a beat is
+    // the same every time you arrive at it. Idle motion is the layers' job;
+    // they are the ones handed `elapsed` on the next line.
+    journey.camera?.(u, stage.camera, ctx);
     streamer.update(u, dt, elapsed);
 
     const i = beatIndexAt(u);

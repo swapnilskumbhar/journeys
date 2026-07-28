@@ -16,6 +16,25 @@ import { FRAME_UNITS } from './rebase.js';
 //     beats:   [ { at | u, heading, body, hint? } ],
 //     layers:  [ { id, from, to, build } ],
 //   })
+//
+// `camera` IS HANDED NO CLOCK, and that is load-bearing rather than an
+// oversight. The viewpoint must be a pure function of u:
+//
+//   · The reader can arrive at any u from any direction, at any speed, at any
+//     moment — dragging the ribbon, dragging the scrollbar, deep-linking. The
+//     frame they get has to be the frame that beat was composed for, not a
+//     function of how long the tab has been open.
+//   · Everything a journey positions is authored in WORLD space — where a moon
+//     sits, which way the light comes from, which side of the frame the copy
+//     panel is clear of. A camera that moves on its own slides all of it. The
+//     Earth–Moon pair used to be 28° off-axis after 45 seconds and 76° after
+//     134; past three minutes the Moon was behind the planet.
+//   · Rule 8: a render must be reproducible, and screenshot review is only
+//     evidence if the same u is the same picture twice.
+//
+// Motion for a reader who has stopped scrolling comes from the LAYERS, which do
+// get a clock (`t` in stream.js's update) precisely so drift, twinkle and flow
+// carry on when the axis is still.
 
 export function defineJourney(def) {
   const axis = makeAxis(def.axis);

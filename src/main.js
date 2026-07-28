@@ -4,6 +4,7 @@ import './style.css';
 import { journeyMetas, loadJourney } from './engine/journey.js';
 import { mountJourney } from './engine/player.js';
 import { mountHome } from './home.js';
+import { slugAt } from './routes.js';
 
 // History API routing from day one — NOT hash routing.
 //
@@ -22,7 +23,10 @@ async function route() {
   current?.destroy();
   current = null;
 
-  const slug = location.pathname.replace(/^\/+|\/+$/g, '');
+  // Not `pathname` stripped of its slashes — see routes.js. Under a deployment
+  // prefix that reads the prefix itself as the journey id, so every deep link
+  // misses and silently falls back to the index.
+  const slug = slugAt(location.pathname);
   if (!slug) {
     setHead({ title: 'Journeys — scroll through time, distance and scale' });
     current = mountHome(app, journeyMetas);

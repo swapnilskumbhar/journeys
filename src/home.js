@@ -1,5 +1,7 @@
 // Index of journeys. Intentionally plain for now — the grid earns design work
 // once there is more than one card in it.
+import { hrefFor } from './routes.js';
+
 export function mountHome(container, metas) {
   container.innerHTML = `
     <div class="home">
@@ -22,7 +24,7 @@ export function mountHome(container, metas) {
 
 const card = (m) => `
   <li class="journey-card" style="--accent:${m.accent ?? '#7cc4ff'}">
-    <a href="/${m.id}">
+    <a href="${hrefFor(m.id)}">
       <h2>${m.title}</h2>
       <p>${m.summary ?? ''}</p>
       <span class="card-axis">${m.axisLabel ?? ''}</span>

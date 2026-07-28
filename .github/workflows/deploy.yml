@@ -1,0 +1,65 @@
+name: Deploy to GitHub Pages
+
+# Pages needs to be switched to "GitHub Actions" as its source once, by hand,
+# in Settings → Pages. Until then this workflow builds green and the deploy
+# step fails with a permissions error.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race. Not cancel-in-progress: a half-finished deploy
+# that gets cancelled can leave the live site mid-swap.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # The axis and pacing checks need no browser, so they are free here and
+      # they are the ones that fail in ways a screenshot would never catch.
+      # The visual checks (shots.mjs, scroll-check.mjs) are deliberately NOT
+      # here: they need a dev server and a Chromium download, and their output
+      # is images that have to be looked at by a person to mean anything.
+      - name: Engine + axis smoke
+        run: node scripts/smoke.mjs
+
+      - name: Build
+        run: npm run build
+        env:
+          # Change both of these together if the site ever moves. For a custom
+          # domain it is SITE_BASE=/ plus a public/CNAME file.
+          SITE_BASE: /journeys/
+          SITE_ORIGIN: https://swapnilskumbhar.github.io
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
