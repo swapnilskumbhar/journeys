@@ -1,5 +1,11 @@
 # Plan: rebuild the life era (beats 20–30)
 
+> **DONE** — shipped 2026-07-28 across three commits (pacing gate + axis retune;
+> water/blob archetypes + seafloor fixes; the beats themselves). Kept as the
+> record of what was wrong and why the fixes are shaped the way they are.
+> Deviations from this plan, and the four defects found by looking at the
+> contact sheet rather than by following it, are listed in §9 at the end.
+
 Agreed direction: **procedural silhouettes** — backlit forms against a lit
 backdrop, no external 3D assets. Prototype for beats 26–27 (Ediacaran and
 Cambrian seafloor) is built and working; it is the reference for the rest.
@@ -193,3 +199,40 @@ New `silhouette` kinds needed: none — `frond`, `segmented`, `tree`, `dome`,
   their span, because mid-beat sampling alone hides sequencing bugs
 - `scripts/scroll-check.mjs` after any player/ribbon/length change
 - Build must pass before anything is called done
+
+---
+
+## 9. What actually happened
+
+**Pacing.** The vh gate is beats 19–30 at 1.5 vh, plus a 0.15 vh floor
+everywhere else — not the 0.4 vh global floor this plan asked for. The wheel and
+writing are honestly 1,300 years apart, which on a log-lookback axis is 0.2% of
+the journey no matter how it is weighted; a 0.4 vh floor could only be met by
+lying about one of the dates. Result: scene beats went 20.3 → 30.9 vh, cosmology
+kept its absolute scroll (beat 5 was 0.39 vh and is 0.38), and all 15.6 extra vh
+of page length went to the life era.
+
+**The Moon.** 120 px was not achievable honestly. Earth and the Moon at four
+Earth radii do not both fit a frame that leaves the Moon that large; it ends at
+~85 px, at 3.45 Earth radii — the low end of the range the giant-impact models
+give. The copy is explicitly about how close it was, so the distance won.
+
+**Four defects this plan did not predict**, all found in the contact sheet:
+
+1. *"Our galaxy" was a black frame.* The disc is fixed at its real 9.5e20 m and
+   dropped off the rebase band before the beat's own midpoint. Three other
+   layer hand-offs had the same shape. Mid-beat is where a beat gets reviewed —
+   a layer has to cover its beat end to end.
+2. *`silhouette`'s `dome` drew inverted arcs* (PI→2PI in a y-flipped canvas is
+   the bottom half of the ellipse), so every stromatolite was a flat slab.
+3. *The seabed had no relief at all* — `terrain`'s flatten radius defaults to
+   600 m, larger than the whole 60 m seafloor, so the lift term was zero
+   everywhere. Its colour wavelengths were hardcoded savanna numbers too.
+4. *The K–Pg pull-back overshot the ground disc*, turning the world into a
+   saucer floating in frame.
+
+**Extra archetype work** beyond §6: `particleField` `innerRadius` (a filled disc
+reads as a spray, a ring reads as something in orbit), `terrain` `lightColor` +
+colour drives (one surface crossing a lighting change), `backdrop` `sunGain` (a
+broad source has to be dim), `silhouette` `nearFadeMeters`, and a distance
+normal-flatten in `water` to kill grazing-angle moiré.

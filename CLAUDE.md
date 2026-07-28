@@ -22,9 +22,13 @@ launch pad → Mars.
 - Engine + axis math (pure modules, no browser) — must print `SMOKE PASS`:
   `& "C:\Program Files\nodejs\node.exe" scripts/smoke.mjs`. Covers axis
   round-tripping, segment seams, monotonicity, the rebaser band, and **beat
-  pacing** (no two beats closer than 0.3% of the axis, no gap wider than 11%).
-  Extend it whenever axis or rebase behaviour changes; these are the modules
-  most likely to be wrong in ways that only show up 12 decades into a journey.
+  pacing — in viewport-heights**: it prints every beat's scroll in vh and fails
+  if a scene beat (19–30) drops under 1.5. Gating on a fraction of the AXIS is
+  what let the original pacing bug through — "A star is born" was 0.4 vh, about
+  360 px for the whole formation of the solar system, and looked ordinary by
+  every axis-relative measure. Extend it whenever axis or rebase behaviour
+  changes; these are the modules most likely to be wrong in ways that only show
+  up 12 decades into a journey.
 - Screenshots — the only reliable way to SEE a journey (the Browser pane is
   compositor-throttled and its screenshots time out):
   `node scripts/shots.mjs <id> [outDir] [port] [--at=0.1,0.5] [--sheet]`.
@@ -89,19 +93,45 @@ launch pad → Mars.
    must have been LOOKED AT before calling anything done. Framing, occlusion and
    copy-vs-visual truth are judged by eyes.
 
-## Status (2026-07-27)
+## Status (2026-07-28)
 
-**`big-bang` ships** — 39 beats, Planck epoch to today, its own lazy chunk.
-The zoom does not stop at Earth: after the K–Pg beat the same dive that went
-cosmic-web → galaxy → disc continues to the ground — a campfire on the savanna
-(300 m frame), firelight spreading across a night aerial for Out of Africa,
-fields, a lamplit village for the wheel, the first city for writing, the
-electrified industrial city — then pulls back to orbit so "Today" ends on the
-night-lit planet. Six archetypes (particleField, glowSphere, filaments, planet,
-**terrain**, **blocks**) cover all of it with no bespoke Three.js in the
-journey folder.
+**`big-bang` ships** — 39 beats, Planck epoch to today, 78 vh, its own lazy
+chunk. The frame goes where each beat's subject is and only returns to orbit for
+"Today": cosmic web → galaxy → molecular cloud → protoplanetary disc → the
+Moon-forming impact → a Hadean sea → stromatolite shallows → **one cell at 20
+microns** → the Ediacaran seafloor → out of the water onto a Devonian shore →
+Siberian flood basalt → Chicxulub → savanna campfire → first city → industrial
+skyline → the night-lit planet. Ten archetypes (particleField, glowSphere,
+filaments, planet, terrain, blocks, backdrop, silhouette, **water**, **blob**)
+cover all of it with no bespoke Three.js in the journey folder.
 
-Surface-era lessons, in addition to the exposure ones below:
+Life-era lessons (beats 20–30), on top of the surface and exposure ones below:
+
+- **Pacing bugs hide from axis-relative checks.** Segment weights were set when
+  the life era was nine static globes needing no time, and nothing caught it
+  when those beats started carrying scenes. Measure in viewport-heights — what
+  the reader actually scrolls — and gate on it.
+- **A beat's midpoint is where it gets reviewed.** `shots.mjs` samples mid-beat,
+  and four separate layers were keyed to arrive or leave before that point, each
+  producing a black frame with a caption on it. A layer must cover its beat END
+  TO END, and anything whose relevance depends on altitude should be gated on
+  `rebase.frameMeters()` rather than on u.
+- **Events need three phases, not an aftermath.** The Moon beat showed a molten
+  globe with a grey disc beside it while the copy described a collision.
+  Approach → strike → coalescence, staged in the layer envelopes, is the pattern
+  the K–Pg beat then reused verbatim.
+- **Additive blending cannot draw a hole.** Dark molecular cloud, volcanic ash
+  and impact dust all came out as grey glows brightening the sky they were
+  supposed to blot out. `blending: 'normal'` exists for exactly those.
+- **A ground disc must be seen from below its own horizon.** Pull the frame
+  wider than the terrain's radius and the world becomes a saucer floating in
+  space — the rim alpha fade is designed to read as haze, not as an edge.
+- **Silhouettes have no ground-following.** They stand at y=0, so terrain relief
+  inside the scatter radius buries them. Keep `flattenMeters` ≥ the cast's
+  `areaMeters`, and use `nearFadeMeters` — `centreClear` only holds instances
+  off the ORIGIN, and the camera is neither at the origin nor still.
+
+Surface-era lessons:
 
 - **Lights read at any scale; geometry does not.** A 4 m hut is sub-pixel in a
   1.5 km frame. Every settlement is sold by a warm point-field (lamps) plus a
@@ -114,7 +144,9 @@ Surface-era lessons, in addition to the exposure ones below:
 - **The terrain plane is square.** Its rim must alpha-fade to a circle or the
   corners read as a dark sheet during the pull-back.
 - `patch` is a GLSL reserved word. Shader compiles fail with a one-word hint
-  three lines away from the actual problem.
+  three lines away from the actual problem. Relatedly: the GLSL lives in JS
+  template literals, so a **backtick in a shader comment** ends the literal
+  three hundred lines early and the parse error points at the comment.
 
 Things the first journey taught, which the next one should not relearn:
 
