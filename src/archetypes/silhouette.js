@@ -208,7 +208,7 @@ function dome(ctx, rand) {
   ctx.fillRect(-w * 0.5, 0, w, h * 0.06);
 }
 
-function figure(ctx, rand) {
+function figure(ctx, rand, { stoop = 0, tool = 0 } = {}) {
   // A person, standing or mid-stride.
   //
   // Deliberately plain, and deliberately THICK. These land at 20–60 px tall,
@@ -216,9 +216,18 @@ function figure(ctx, rand) {
   // — every hominin in the journey rendered as a faint scratch next to a tree.
   // A silhouette that survives being small has to be drawn heavier than looks
   // right at full size; the stance carries the meaning, not the anatomy.
+  //
+  // `stoop` bends a fraction of the variants forward at the waist and `tool`
+  // gives some of them something long in one hand. Both exist because WORK is
+  // a posture: a field of upright figures reads as a crowd standing about,
+  // and the farming beat needs people doing something to the ground.
   const h = S * (0.74 + rand() * 0.2);
   const stride = 0.55 + rand() * 0.75;
   const w = h * 0.085;
+  const bend = rand() < stoop ? 0.55 + rand() * 0.45 : 0;
+  // shoulder position: dropped forward and down as the figure bends
+  const sx = h * 0.3 * bend;
+  const sy = h * (0.79 - 0.28 * bend);
 
   ctx.lineCap = 'round';
   ctx.lineWidth = w * 1.6;
@@ -233,20 +242,30 @@ function figure(ctx, rand) {
   ctx.lineWidth = w * 2.2;
   ctx.beginPath();
   ctx.moveTo(0, h * 0.44);
-  ctx.lineTo(0, h * 0.79);
+  ctx.lineTo(sx, sy);
   ctx.stroke();
-  // arms
+  // arms — hanging toward the ground when bent, swinging when upright
   ctx.lineWidth = w * 1.35;
+  const hx = sx + h * (bend ? 0.12 : -0.14 * stride);
+  const hy = bend ? h * 0.12 : h * 0.48;
   ctx.beginPath();
-  ctx.moveTo(0, h * 0.76);
-  ctx.lineTo(-h * 0.14 * stride, h * 0.48);
-  ctx.moveTo(0, h * 0.76);
-  ctx.lineTo(h * 0.16 * stride, h * 0.5);
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(hx, hy);
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx + h * (bend ? 0.2 : 0.16 * stride), bend ? h * 0.2 : h * 0.5);
   ctx.stroke();
   // head
   ctx.beginPath();
-  ctx.ellipse(0, h * 0.885, h * 0.085, h * 0.095, 0, 0, Math.PI * 2);
+  ctx.ellipse(sx + h * 0.09 * bend, sy + h * 0.095, h * 0.085, h * 0.095, 0, 0, Math.PI * 2);
   ctx.fill();
+  // a hoe, a digging stick, a spear — held in the leading hand
+  if (rand() < tool) {
+    ctx.lineWidth = w * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(hx + h * 0.06, hy + h * 0.34);
+    ctx.lineTo(hx - h * 0.08, hy - h * 0.1);
+    ctx.stroke();
+  }
 }
 
 function reed(ctx, rand) {
@@ -266,9 +285,175 @@ function reed(ctx, rand) {
   }
 }
 
-const KINDS = { frond, segmented, tree, dome, figure, reed };
+function crop(ctx, rand) {
+  // A clump of cereal stalks. This is `reed` plus the one feature that carries
+  // the whole meaning: the SEED HEAD. Without it a field of these is grass,
+  // and grass is not agriculture — it is the thing agriculture replaced.
+  const n = 3 + Math.floor(rand() * 4);
+  ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const h = S * (0.58 + rand() * 0.34);
+    const x = (rand() - 0.5) * S * 0.3;
+    const bend = (rand() - 0.5) * S * 0.18;
+    const hx = x + bend;
+    const hy = h * 0.74;
 
-function buildAtlas(kind, variants, seed) {
+    ctx.lineWidth = S * 0.017;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.quadraticCurveTo(x + bend * 0.3, h * 0.5, hx, hy);
+    ctx.stroke();
+
+    // a leaf or two, low down — stops the stalk reading as a wire
+    ctx.lineWidth = S * 0.012;
+    for (const s of [-1, 1]) {
+      if (rand() < 0.45) continue;
+      ctx.beginPath();
+      ctx.moveTo(x + bend * 0.15, h * 0.3);
+      ctx.quadraticCurveTo(x + s * S * 0.05, h * 0.42, x + s * S * 0.07, h * 0.5);
+      ctx.stroke();
+    }
+
+    // the ear: a fat spike with awns splaying off the top
+    ctx.beginPath();
+    ctx.ellipse(hx, hy + h * 0.1, S * 0.03, h * 0.11, bend * 0.006, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = S * 0.007;
+    for (let a = 0; a < 5; a++) {
+      const t = (a / 4 - 0.5) * 2;
+      ctx.beginPath();
+      ctx.moveTo(hx + t * S * 0.02, hy + h * 0.16);
+      ctx.lineTo(hx + t * S * 0.06, hy + h * 0.16 + h * (0.1 + rand() * 0.06));
+      ctx.stroke();
+    }
+  }
+}
+
+// NOTE on the two below: both are WIDER than they are tall, and the atlas cell
+// is square. They are therefore drawn filling the cell's width with only about
+// half its height, which means `heightMeters` sets the cell — a cart authored
+// at heightMeters 2.8 stands about 1.4 m tall and 2.8 m long. Cheaper than
+// giving the archetype a second size axis, and it keeps `aspect` free for
+// per-scene stretching.
+
+function cart(ctx, rand) {
+  // A two-wheeled cart. The WHEEL is the subject of the beat, so it is drawn
+  // as a rim with spokes and left OPEN — a filled disc reads as a barrel, and
+  // the one thing that has to survive at thirty pixels is the circle.
+  const wheelR = S * (0.155 + rand() * 0.03);
+  const axleY = wheelR;
+  const bodyW = S * (0.46 + rand() * 0.1);
+  const bodyH = S * (0.11 + rand() * 0.05);
+  const bodyY = axleY + wheelR * 0.42;
+  const cx = -S * 0.06;
+
+  // shaft running forward to the yoke, and the yoke bar itself
+  ctx.lineCap = 'round';
+  ctx.lineWidth = S * 0.018;
+  ctx.beginPath();
+  ctx.moveTo(cx + bodyW * 0.5, bodyY + bodyH * 0.2);
+  ctx.lineTo(S * 0.47, bodyY + bodyH * 0.55);
+  ctx.stroke();
+  ctx.lineWidth = S * 0.014;
+  ctx.beginPath();
+  ctx.moveTo(S * 0.41, bodyY + bodyH * 0.95);
+  ctx.lineTo(S * 0.47, bodyY + bodyH * 0.2);
+  ctx.stroke();
+
+  // bed, with side rails — a plain box reads as a crate, rails read as a cart
+  ctx.fillRect(cx - bodyW * 0.5, bodyY, bodyW, bodyH);
+  ctx.lineWidth = S * 0.013;
+  ctx.beginPath();
+  ctx.moveTo(cx - bodyW * 0.5, bodyY + bodyH);
+  ctx.lineTo(cx - bodyW * 0.5, bodyY + bodyH * 2.1);
+  ctx.moveTo(cx + bodyW * 0.5, bodyY + bodyH);
+  ctx.lineTo(cx + bodyW * 0.5, bodyY + bodyH * 2.0);
+  ctx.stroke();
+  // a heaped load, some of the time — low and broad, or it swallows the cart
+  if (rand() < 0.6) {
+    ctx.beginPath();
+    ctx.ellipse(cx, bodyY + bodyH, bodyW * 0.38, bodyH * 0.8, 0, 0, Math.PI);
+    ctx.fill();
+  }
+
+  // the wheel: rim, hub, spokes
+  const wx = cx - bodyW * 0.16;
+  ctx.lineWidth = S * 0.022;
+  ctx.beginPath();
+  ctx.arc(wx, axleY, wheelR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = S * 0.013;
+  const spokes = 6 + Math.floor(rand() * 3);
+  for (let i = 0; i < spokes; i++) {
+    const a = (i / spokes) * Math.PI * 2 + rand() * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(wx, axleY);
+    ctx.lineTo(wx + Math.cos(a) * wheelR, axleY + Math.sin(a) * wheelR);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.ellipse(wx, axleY, wheelR * 0.17, wheelR * 0.17, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function beast(ctx, rand) {
+  // A four-legged draught animal in profile — ox, horse or deer by proportion.
+  // At these sizes the recognisability budget is the BACKLINE and four legs;
+  // everything else is texture.
+  const legH = S * (0.17 + rand() * 0.05);
+  const bodyH = S * (0.15 + rand() * 0.04);
+  const bodyW = S * (0.5 + rand() * 0.08);
+  const cy = legH + bodyH * 0.5;
+  const hump = rand() < 0.5 ? bodyH * 0.3 : 0; // zebu shoulder
+
+  ctx.lineCap = 'round';
+  ctx.lineWidth = S * 0.026;
+  for (let i = 0; i < 4; i++) {
+    const x = -bodyW * 0.34 + (i % 2) * bodyW * 0.68 + (i < 2 ? -S * 0.012 : S * 0.012);
+    ctx.beginPath();
+    ctx.moveTo(x, legH);
+    ctx.lineTo(x + (rand() - 0.5) * S * 0.03, 0);
+    ctx.stroke();
+  }
+
+  // barrel body, with the shoulder hump riding on top of it
+  ctx.beginPath();
+  ctx.ellipse(0, cy, bodyW * 0.5, bodyH * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (hump) {
+    ctx.beginPath();
+    ctx.ellipse(bodyW * 0.18, cy + bodyH * 0.45, bodyW * 0.17, hump, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // neck and head, carried low
+  ctx.lineWidth = S * 0.05;
+  ctx.beginPath();
+  ctx.moveTo(bodyW * 0.4, cy + bodyH * 0.25);
+  ctx.lineTo(bodyW * 0.62, cy + bodyH * 0.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(bodyW * 0.7, cy + bodyH * 0.02, bodyW * 0.1, bodyH * 0.3, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // horns
+  ctx.lineWidth = S * 0.011;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(bodyW * 0.66, cy + bodyH * 0.3);
+    ctx.quadraticCurveTo(bodyW * (0.72 + s * 0.03), cy + bodyH * 0.55, bodyW * (0.78 + s * 0.06), cy + bodyH * 0.42);
+    ctx.stroke();
+  }
+  // tail
+  ctx.lineWidth = S * 0.012;
+  ctx.beginPath();
+  ctx.moveTo(-bodyW * 0.48, cy + bodyH * 0.3);
+  ctx.quadraticCurveTo(-bodyW * 0.58, cy - bodyH * 0.1, -bodyW * 0.54, legH * 0.5);
+  ctx.stroke();
+}
+
+const KINDS = { frond, segmented, tree, dome, figure, reed, crop, cart, beast };
+
+function buildAtlas(kind, variants, seed, opts) {
   const draw = KINDS[kind];
   if (!draw) throw new Error(`unknown silhouette kind: ${kind}`);
   const rand = rng(seed);
@@ -283,7 +468,9 @@ function buildAtlas(kind, variants, seed) {
     // origin to the bottom-centre of this slice, y flipped so +y is up
     ctx.translate(S * (v + 0.5), S);
     ctx.scale(1, -1);
-    draw(ctx, rand);
+    // `|| {}` and not a parameter default: a default only fires on undefined,
+    // and every caller that does not set kindOpts passes null.
+    draw(ctx, rand, opts || {});
     ctx.restore();
   }
   const tex = new THREE.CanvasTexture(c);
@@ -383,6 +570,7 @@ const fragment = /* glsl */ `
 
 export function silhouette({
   kind = 'frond',
+  kindOpts = null,          // passed through to the drawing routine
   count = 40,
   variants = 5,
   seed = 1,
@@ -391,6 +579,17 @@ export function silhouette({
   aspect = 1,               // width/height multiplier of the drawn form
   centreClear = 0,          // keep a clear radius at the origin
   nearFadeMeters = 0,       // dissolve instances that come this close to the camera
+  // Row planting. > 0 replaces the disc scatter with parallel rows `rowMeters`
+  // apart, filling a square of side 2 * areaMeters, rotated by `rowAngle`.
+  // Rows are the difference between a meadow and a crop: nothing else in a
+  // silhouette field says a human being put it there.
+  rowMeters = 0,
+  rowAngle = 0.4,
+  rowJitter = 0.22,         // fraction of the row pitch each plant wanders
+  // Displacement from the journey origin, in METRES — same contract as
+  // particle-field. Lets a second band of walkers sit across the valley
+  // instead of on top of the first.
+  offsetMeters = null,
   color = 0x05060a,
   rim = 0x2a3450,
   cut = 0.34,
@@ -401,7 +600,7 @@ export function silhouette({
   respectBand = true,
 } = {}) {
   const rand = rng(seed);
-  const tex = buildAtlas(kind, variants, seed * 31 + 7);
+  const tex = buildAtlas(kind, variants, seed * 31 + 7, kindOpts);
 
   const uniforms = {
     uMap: { value: tex },
@@ -435,17 +634,30 @@ export function silhouette({
   const seedAttr = new Float32Array(count);
   const m = new THREE.Matrix4();
 
+  const rows = rowMeters > 0 ? Math.max(1, Math.round((areaMeters * 2) / rowMeters)) : 0;
+  const perRow = rows ? Math.ceil(count / rows) : 0;
+  const ca = Math.cos(rowAngle);
+  const sa = Math.sin(rowAngle);
+
   for (let i = 0; i < count; i++) {
-    // sqrt keeps the scatter uniform by area rather than piling up at the centre
-    const r = centreClear + (areaMeters - centreClear) * Math.sqrt(rand());
-    const th = rand() * Math.PI * 2;
+    let px, pz;
+    if (rows) {
+      const row = i % rows;
+      const along = (Math.floor(i / rows) + rand()) / perRow;
+      const a = (along - 0.5) * areaMeters * 2;
+      const b = (row + 0.5) * rowMeters - areaMeters + (rand() - 0.5) * rowMeters * rowJitter;
+      px = a * ca - b * sa;
+      pz = a * sa + b * ca;
+    } else {
+      // sqrt keeps the scatter uniform by area rather than piling up at the centre
+      const r = centreClear + (areaMeters - centreClear) * Math.sqrt(rand());
+      const th = rand() * Math.PI * 2;
+      px = Math.cos(th) * r;
+      pz = Math.sin(th) * r;
+    }
     const h = heightMeters[0] + rand() ** 1.7 * (heightMeters[1] - heightMeters[0]);
     m.makeScale(h * aspect, h, 1);
-    m.setPosition(
-      Math.cos(th) * r,
-      yMeters + (rand() - 0.5) * spreadY,
-      Math.sin(th) * r,
-    );
+    m.setPosition(px, yMeters + (rand() - 0.5) * spreadY, pz);
     mesh.setMatrixAt(i, m);
     variantAttr[i] = Math.floor(rand() * variants);
     seedAttr[i] = rand();
@@ -467,7 +679,18 @@ export function silhouette({
       group.scale.setScalar(rebase.toWorld(1));
       uniforms.uTime.value = t;
 
+      if (offsetMeters !== null) {
+        const raw = typeof offsetMeters === 'function'
+          ? offsetMeters({ u, local, rebase, t })
+          : offsetMeters;
+        const [ox, oy, oz] = Array.isArray(raw) ? raw : [raw, 0, 0];
+        group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
+      }
+
       if (camera) {
+        // matrixWorld must be current or the near-fade lags a frame behind the
+        // offset — visible as instances popping when a group is displaced
+        group.updateMatrixWorld();
         camLocal.copy(camera.position);
         group.worldToLocal(camLocal);
         uniforms.uCamLocal.value.copy(camLocal);

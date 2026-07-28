@@ -39,6 +39,11 @@ export function particleField({
   // cloud only
   clumps = 24,
   clumpSpread = 0.16,
+  // Multiplier on the generated y. Below 1 it presses a distribution flat —
+  // 'cloud' with flattenY 0.02 is a set of CLUSTERS ON THE GROUND, which is
+  // how camps, islands and towns are shaped and what a uniform disk can never
+  // say. Above 1 it stretches, which is what turns a clump into a plume.
+  flattenY = 1,
   // per-frame
   opacity = () => 1,
   scaleBias = 1,
@@ -104,6 +109,8 @@ export function particleField({
       y = c[1] + gaussian(rand) * clumpSpread;
       z = c[2] + gaussian(rand) * clumpSpread;
     }
+
+    if (flattenY !== 1) y *= flattenY;
 
     pos[i * 3] = x;
     pos[i * 3 + 1] = y;

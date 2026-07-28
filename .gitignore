@@ -45,6 +45,7 @@ playwright/.cache/
 
 # Project specific
 review-shots/
+shots/
 renders/
 renders-smoke/
 logo/

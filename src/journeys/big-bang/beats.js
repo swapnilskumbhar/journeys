@@ -158,7 +158,11 @@ export const beats = [
     body: 'Vast volcanic eruptions in Siberia burn through coal deposits and dump carbon into the atmosphere. The oceans acidify and lose their oxygen. Around 81% of marine species vanish — the closest life has come to ending entirely, and it takes ten million years to recover.',
   },
   {
-    at: ago(66e6),
+    // 66.2 rather than 66.0 so the beat OPENS on the approach and its scroll
+    // midpoint lands on the strike — see the dedicated segment in axis-def.js.
+    // Chicxulub is dated 66.05 ± 0.05 Ma, so the beat still starts inside the
+    // approach it is describing.
+    at: ago(66.2e6),
     heading: 'Ten kilometres of rock',
     body: 'An asteroid strikes what is now the Yucatán Peninsula at around 20 kilometres per second. Impact debris ignites fires worldwide and dust blocks the sun for years. The non-avian dinosaurs end here, and the small surviving mammals inherit an empty world.',
   },

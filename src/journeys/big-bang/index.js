@@ -123,12 +123,21 @@ const SCALE = [
   [uAt(ago(256e6)), 1.8e4],  // the Siberian traps, from altitude
   [uAt(ago(200e6)), 2.2e4],
   [uAt(ago(80e6)), 3.0e4],
-  [uAt(ago(66.6e6)), 3.0e4], // the asteroid arrives at ground level…
-  // …and the pull-back watches the shockwave spread. Capped at 7e4: the ground
-  // is a 9e4 m disc, so any wider and it stops being the world and becomes a
-  // saucer floating in the frame. Its rim fade is designed to be read from
-  // BELOW the horizon, not from above the whole thing.
-  [uAt(ago(65.4e6)), 7.0e4],
+  // Dead still for the approach AND the strike. The impact now owns its own
+  // linear segment, so these three rows are roughly four viewport-heights of
+  // scroll in one unmoving frame — which is what an event beat needs and what
+  // the previous version, travelling the whole time, could not give it.
+  // 1.2e4, not 3.0e4. The camera sits six units out, so at a 30 km frame it is
+  // 180 km from the impact and the whole event is a glow on a distant plain.
+  // At 12 km the fireball straddles the horizon and the ejecta crosses the
+  // frame — still inside the ground disc's radius/6 rule with room to spare.
+  [uAt(ago(66.2e6)), 1.2e4],
+  [uAt(ago(65.96e6)), 1.2e4],
+  // Then the pull-back watches the wave spread. Capped near 3.3e4: the ground
+  // disc is 2.0e5 m and the camera sits six units out, so anything past
+  // radius/6 puts the camera beyond the terrain's own edge and the world
+  // becomes a saucer floating in the frame.
+  [uAt(ago(65.9e6)), 3.0e4],
   // …then settle back down and STAY down. The old table climbed to 1.1e6 here
   // because it was arriving from orbit.
   [uAt(ago(56e6)), 2.6e4],
@@ -162,37 +171,46 @@ const SCALE = [
   // as three dots of firelight on a black plain.
   [uAt(ago(330e3)), 78],     // wider: three camps
   [uAt(ago(120e3)), 88],
-  [uAt(ago(80e3)), 1.4e4],   // night aerial: firelight spreading
-  [uAt(ago(50e3)), 1.5e4],
-  [uAt(ago(13.5e3)), 2.2e3], // fields
-  [uAt(ago(10e3)), 1.9e3],
-  // Settlement frames are tight — a 4 m hut at a 1.5 km frame is sub-pixel,
-  // so the village gets 750 m and the first city 900 m; the lamp layers do
-  // the rest of the work of making them read.
-  // Settlement frames are tight, and 750 m was still not tight enough: a 4 m
-  // mud-brick hut is four pixels there, so "The wheel" rendered as an empty
-  // hazy plain. At 430 m the village reads as built ground with structures on
-  // it — the lesson from the lamps, applied to the geometry they sit on.
-  [uAt(ago(6.9e3)), 520],
-  [uAt(ago(5.9e3)), 430],
-  [uAt(ago(5.35e3)), 500],
-  // HELD on the first city to 1.1 kyr. "Writing" runs 5.2 kyr → 260 yr, so its
-  // midpoint is ~1.35 kyr, and the old table was already at 2.7 km by then —
-  // far enough out that the mud-brick city was a smudge of lamplight and the
-  // foreground was all field parcels.
-  [uAt(ago(1.1e3)), 700],
-  [uAt(ago(500)), 5.5e3],    // the industrial city
-  [uAt(ago(270)), 7.0e3],
-  // HELD on the city to 45 years ago. "Machines" runs from 260 to 8 years ago,
-  // so its own midpoint is ~54 years — and the pull-back used to start at 45,
-  // which put the beat's middle at a 250 km frame with the city a nine-hundredth
-  // of a unit across. The industrial revolution rendered as a black starfield
-  // with one glowing dot in it.
-  [uAt(ago(45)), 7.5e3],
+  // "Out of Africa" was a 14 km NIGHT AERIAL, which is two defects at once: the
+  // ground disc is 30 km, so the camera sat at 84 km — twice outside its own
+  // world — and at that width a person is a third of a pixel, so the only thing
+  // that could be drawn was fires. It rendered as what it was: a scatter of dots
+  // on black. The migration is now told at the scale of the people doing it, and
+  // the spread is carried by a chain of camps running back to the horizon.
+  // 60 m, not 105: at 105 a 1.7 m walker is nine pixels, which is a speck with
+  // a rim light on it. The chain of camps carries the distance instead.
+  [uAt(ago(80e3)), 38],
+  [uAt(ago(24e3)), 34],
+  // Farming opens from the air, on the patchwork — the shape of the change —
+  // and then goes down INTO the crop, which is where the beat's own midpoint
+  // (8.8 kyr) now sits. One reading is the pattern on the land, the other is
+  // people bent over a field; the beat is about both and had neither.
+  [uAt(ago(13e3)), 1.6e3],
+  [uAt(ago(11e3)), 1.5e3],
+  [uAt(ago(9.6e3)), 46],
+  [uAt(ago(7.2e3)), 42],
+  // "The wheel" was a 430 m village at dusk: true, and it showed no wheel. A
+  // cart at 40 m is a rimmed circle eighty pixels across, which is the one
+  // shape this beat has to deliver.
+  [uAt(ago(6.2e3)), 24],
+  [uAt(ago(5.4e3)), 27],
+  // "Writing" is the smallest subject in the journey after the cell, and it was
+  // being told at 700 m — a city, with the marks that are the entire point of
+  // the beat some four decades below the pixel grid. So the journey does what it
+  // already did for a living cell and dives: at a 1.5 m frame a clay tablet is a
+  // third of the screen and the wedges are legible. Held across the midpoint
+  // (1.16 kyr), which is what makes it the beat rather than a moment in it.
+  [uAt(ago(4.2e3)), 0.85],
+  [uAt(ago(900)), 0.85],
+  // Machines. Also four decades too far out before — a 7 km frame makes a 40 m
+  // chimney six pixels, so the industrial revolution was a grey smudge with
+  // lights in it. At 280 m the mills have walls and the chimneys have plumes.
+  [uAt(ago(400)), 280],
+  [uAt(ago(30)), 300],
   // The pull-back transits the awkward middle distances fast: between the city
-  // (10^4 m) and the globe (10^7 m) there is nothing to look at but the dark
-  // flank of the planet, so those years get the least scroll.
-  [uAt(ago(20)), 8.0e4],
+  // and the globe there is nothing to look at but the dark flank of the planet,
+  // so those years get the least scroll.
+  [uAt(ago(16)), 9.0e3],
   [uAt(ago(9)), 6.0e6],
   [1, 1.9e7],                // in orbit for Today
 ];
@@ -223,6 +241,18 @@ const LOOK_Y = [
   [uAt(ago(430e6)), 0.4],
   [uAt(ago(380e6)), 0.3],
   [uAt(ago(300e6)), 0.05],
+  [uAt(ago(1e6)), 0.05],
+  // Ground-level beats need sky. Aimed at the origin the horizon sits dead
+  // centre and half the frame is bare floor — which is survivable when the
+  // floor is a lit savanna and fatal when the subject (a plume of smoke, a
+  // moon, a chimney) is above the skyline.
+  [uAt(ago(70e3)), 0.4],     // Out of Africa: the moon is half the scene
+  [uAt(ago(11e3)), 0.1],     // the aerial over the fields wants ground
+  [uAt(ago(9e3)), 0.35],     // …and the crop close-up wants the sky back
+  [uAt(ago(4e3)), 0.15],
+  [uAt(ago(900)), -0.05],    // aim below the origin: the bench, not the sky
+  [uAt(ago(300)), 0.45],     // chimneys and smoke live above the roofline
+  [uAt(ago(20)), 0.2],
   [1, 0],
 ];
 
@@ -289,15 +319,35 @@ const CAM = [
   // the current frame scale — for the campfire and the streets of the first
   // city, back up for the industrial skyline, then out to orbit.
   [uAt(ago(70e6)), [0, 0.5, 6.0]],
+  // Held low THROUGH the impact. Without these two rows the camera is already
+  // interpolating toward the 2.0-unit aerial by 66 Ma — ten kilometres up at
+  // this frame — and the fireball, which is at 1.4 units, ends up near the top
+  // of the sky reading as a sun over a distant plain.
+  [uAt(ago(66.2e6)), [0, 0.42, 6.0]],
+  [uAt(ago(65.5e6)), [0, 0.5, 6.05]],
   [uAt(ago(20e6)), [0, 2.0, 6.3]],
   [uAt(ago(6.5e6)), [0, 2.4, 6.4]],
-  [uAt(ago(2.0e6)), [0, 0.42, 6.2]],
-  [uAt(ago(300e3)), [0, 0.55, 6.1]],
-  [uAt(ago(70e3)), [0, 2.5, 6.3]],
-  [uAt(ago(12e3)), [0, 1.5, 6.2]],
-  [uAt(ago(6.5e3)), [0, 0.62, 6.1]],
-  [uAt(ago(5.0e3)), [0, 0.5, 6.15]],
-  [uAt(ago(300)), [0, 1.35, 6.6]],
+  // EYE LEVEL, and that means a very small number. Camera height in metres is
+  // y × frameMeters / 4, so a "low" 0.45 units is nine metres up at a 80 m
+  // frame — a rooftop. Anything shorter than the camera projects BELOW the
+  // horizon and is read against dark ground instead of against the sky, which
+  // is where every silhouette in this era gets its contrast. Every figure in
+  // the human beats was being shot from a first-floor window.
+  [uAt(ago(2.0e6)), [0, 0.20, 6.2]],
+  [uAt(ago(300e3)), [0, 0.18, 6.1]],
+  [uAt(ago(70e3)), [0, 0.11, 6.1]],
+  [uAt(ago(24e3)), [0, 0.10, 6.1]],
+  [uAt(ago(12e3)), [0, 1.6, 6.3]],   // the one aerial: fields from above
+  [uAt(ago(9.2e3)), [0, 0.12, 6.0]], // …then down INTO the crop
+  [uAt(ago(5.6e3)), [0, 0.11, 6.05]],
+  // Above the bench, looking down at it. A camera at eye height sees a leaned
+  // tablet edge-on, which is a rectangle with nothing written on it.
+  [uAt(ago(2e3)), [0, 1.5, 5.6]],
+  // A hillside over the mill town, not a helicopter over it: at 300 m a camera
+  // 1.35 units up is 400 m in the air, which turns an industrial city into a
+  // map of one.
+  [uAt(ago(300)), [0, 0.42, 6.3]],
+  [uAt(ago(24)), [0, 0.5, 6.3]],
   [1, [0, 0.5, 5.9]],
 ];
 

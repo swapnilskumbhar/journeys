@@ -1,6 +1,6 @@
 import {
   particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette,
-  water, blob,
+  panel, water, blob,
 } from '../../archetypes/index.js';
 import { AGE, YR, ago, after } from './time.js';
 import { band, plin, plog, smooth, clamp01, mixHex, scaleHex } from './curve.js';
@@ -29,29 +29,60 @@ export function makeLayers(uAt, tAt) {
   // dark continent, so it is the one that goes properly to night.
   const dayAt = (ya) => clamp01(plin([
     [58e6, 0.5], [30e6, 0.85], [2.4e6, 0.75], [1.9e6, 0.38],
-    [300e3, 0.42], [65e3, 0.06], [20e3, 0.55], [12e3, 0.92],
-    // The wheel and writing drop toward dusk: hearth- and lamplight are what
-    // say "inhabited" at settlement scale, and neither reads at noon.
-    [6.5e3, 0.58], [5.2e3, 0.42], [600, 0.6], [260, 0.5], [1, 0.55],
+    // Night has to be held ACROSS Out of Africa, not just touched at its start.
+    // That beat runs 65 → 12 kyr, so its own midpoint is 28 kyr — and a curve
+    // that recovered to daylight by 20 kyr put the middle of a beat about
+    // firelight in the middle of the afternoon.
+    // "Us" sits at 151 kyr, between two of these keys, and the old pair put it
+    // at 0.15 — a black plain with one spark on it. Dusk, not midnight: the
+    // fires still read and the people standing around them have something to
+    // be silhouetted against.
+    [300e3, 0.5], [150e3, 0.3], [70e3, 0.06], [22e3, 0.06], [13e3, 0.9],
+    // Farming is the one bright beat down here: a morning field. Then the wheel
+    // sits at late afternoon — low enough for warm light and long shadows on a
+    // cart, high enough that the cart is still visible, which 0.3 was not — and
+    // writing goes to lamplight, which is what a clay tablet has to be read by.
+    [9e3, 0.85], [6.4e3, 0.5], [5.4e3, 0.44], [4.2e3, 0.1], [800, 0.1],
+    [400, 0.5], [30, 0.55], [1, 0.55],
+  ], ya));
+
+  // Moonlight. Not a mood — a requirement. Below about 0.15 of daylight the sky
+  // gives off nothing, so a night beat with people in it has no source to
+  // silhouette them against and renders as a black rectangle with some sparks
+  // on it, which is precisely what "Out of Africa" was. One cold hard disc,
+  // switched on where the daylight curve bottoms out.
+  const moonAt = (ya) => clamp01(plin([
+    [200e3, 0], [90e3, 1], [18e3, 1], [13e3, 0],
   ], ya));
 
   // The Permian–Mesozoic sky, on the same contract as skyAt below: the eruption
   // clears, the world recovers for eighty million years, then the K–Pg snaps it
   // dark again in what is, at this scale, an instant.
   const trapsSkyAt = (ya) => {
-    const clear = clamp01(plin([[240e6, 0], [170e6, 1], [66.6e6, 1], [66.0e6, 0.1]], ya));
+    const clear = clamp01(plin([[240e6, 0], [170e6, 1], [66.1e6, 1], [66.0e6, 0.06]], ya));
+    // How much of the sky the impact has put out. This is what stops the K–Pg
+    // reading as a sunrise: the eruption sky is a warm brown gradient with a
+    // bright band on the horizon, and a single hot glow sitting in it is
+    // indistinguishable from a sun coming up over a plain. Take the sky away
+    // and the same glow becomes the only light in the world, which is what it
+    // was — for a year or two, and then for nobody.
+    const dark = clamp01(plin([[66.08e6, 0], [66.0e6, 1], [65.4e6, 1], [62e6, 0.45], [50e6, 0]], ya));
     // Recovered, not cheerful — a bright horizon over a lit plain reads as an
     // overexposed desert, which is the wrong note for the aftermath of the
     // largest extinction there has been.
-    const horizon = mixHex(0x5a3320, 0x3d5460, clear);
+    const horizon = scaleHex(mixHex(0x5a3320, 0x3d5460, clear), 1 - dark * 0.88);
     return {
       clear,
       horizon,
-      top: mixHex(0x140f0c, 0x0e1b2e, clear),
+      top: scaleHex(mixHex(0x140f0c, 0x0e1b2e, clear), 1 - dark * 0.92),
       bottom: scaleHex(horizon, 0.85),
       seam: scaleHex(horizon, 0.85),
-      sunGain: 0.24 + clear * 0.16,
-      bandLift: 0.34 - clear * 0.16,
+      // The sun goes out with the sky. Left alight, its 6°-wide disc sat on the
+      // horizon as a bright ball right where the impact was happening — and the
+      // impact lost. Two suns in one frame is one too many, and the one that
+      // matters is the one the copy is about.
+      sunGain: (0.24 + clear * 0.16) * (1 - dark),
+      bandLift: (0.34 - clear * 0.16) * (1 - dark * 0.9),
     };
   };
 
@@ -63,16 +94,27 @@ export function makeLayers(uAt, tAt) {
   // moment this era stopped being rendered against black.
   const skyAt = (ya) => {
     const day = dayAt(ya);
+    // How much the moon matters: only where the sun has gone.
+    const m = moonAt(ya) * (1 - clamp01(day * 3));
     // Coal. The copy for "Machines" is about burning it at scale, and a brown
     // horizon is what that looked like from inside the city.
     const smog = clamp01(plin([[400, 0], [180, 0.75], [60, 0.6], [1, 0.4]], ya));
-    const horizon = mixHex(mixHex(0x131a28, 0xc7a479, day), 0x8d6a44, smog * 0.7);
-    const bandLift = 0.16 + day * 0.14;
+    const horizon = mixHex(
+      mixHex(mixHex(0x131a28, 0xc7a479, day), 0x8d6a44, smog * 0.7),
+      0x1e2a44, m * 0.7,
+    );
+    const bandLift = 0.16 + day * 0.14 + m * 0.1;
     return {
       day,
+      // What the GROUND is lit to. Never zero while a moon is up: the daylight
+      // curve is about the sun, and a scene lit to 0.05 is a scene nobody can
+      // see. This is the number every terrain reads, and it is deliberately
+      // not `day`.
+      groundSun: Math.max(day, 0.05 + m * 0.42),
+      moon: m,
       horizon,
       bandLift,
-      top: mixHex(mixHex(0x05070e, 0x27578f, day), 0x3b342a, smog * 0.55),
+      top: mixHex(mixHex(mixHex(0x05070e, 0x27578f, day), 0x3b342a, smog * 0.55), 0x0d1730, m),
       // The dome's lower hemisphere is NOT dark, and that is deliberate. The
       // ground only ever ends where its disc runs out, which from altitude is
       // well above the true horizon — so whatever is painted below the horizon
@@ -81,10 +123,34 @@ export function makeLayers(uAt, tAt) {
       // Ground rim and sky below it are now the same colour, so the seam has
       // nothing to show.
       bottom: scaleHex(horizon, 0.85),
-      sunGain: 0.1 + day * 0.42,
+      // The source swaps from sun to moon: same shader term, cold instead of
+      // warm and a harder, smaller disc. Tinting alone would have left a
+      // sun-sized moon four degrees across.
+      sunColor: mixHex(0xbfd2f2, mixHex(0xffd9a0, 0xffa860, smog * 0.6), 1 - m),
+      sunSize: 0.9975 + 0.0018 * m,
+      sunSoft: 0.006 - 0.0055 * m,
+      // The moon rides higher than the sun does here. Kept in the same quadrant
+      // so it does not fight the terrains' build-time lightDir.
+      // …and swings round toward the camera's default heading. The sun sits
+      // well off to one side, which is right for a landscape and useless for a
+      // moon that has to be IN the frame at the one beat that needs it.
+      sunDir: [0.72 - 0.48 * m, 0.24 + 0.3 * m, -0.48 - 0.34 * m],
+      sunGain: 0.1 + day * 0.42 + m * 0.8,
       seam: scaleHex(horizon, 0.85),
-      light: mixHex(0xffb277, 0xffe0b4, day),
+      // Cold light below about half daylight — moonlight is blue, and warm
+      // light on a night landscape reads as a sunset that forgot to end.
+      light: mixHex(0x93aade, mixHex(0xffb277, 0xffe0b4, day), clamp01(day * 2.2)),
     };
+  };
+
+  // Fade a layer in and out on FRAME WIDTH. Ground-level scenery is only
+  // meaningful across a couple of decades of frame — a 12 m tree is a black
+  // wall at a 3 m frame and a sub-pixel speck at a 3 km one — and keying that
+  // on the frame instead of on u is what lets four terrains hand off to each
+  // other without a single black screen between them.
+  const frames = (rebase, lo, hi) => {
+    const f = rebase.frameMeters();
+    return clamp01((f - lo) / (lo * 0.7)) * clamp01((hi - f) / (hi * 0.4));
   };
 
   const L = (id, fromT, toT, build) => ({ id, from: uAt(fromT), to: uAt(toT), build });
@@ -1118,12 +1184,17 @@ export function makeLayers(uAt, tAt) {
         drive: ({ u }) => trapsSkyAt(yaAt(u)),
         opacity: ({ local }) => band(local, 0.04, 0.14, 0.9, 0.98),
       })),
+    // 2.0e5 m, not the 9e4 it was. The camera sits six units out, so a frame of
+    // F metres puts it 6F from the origin — and the Mesozoic runs at F = 2.2e4
+    // to 3.0e4, which had the camera up to twice as far out as the ground disc
+    // was wide. Looking at a landscape from beyond its own edge is the saucer
+    // failure in its purest form. The rule is simply frame ≤ radius / 6.
     L('traps-ground', ago(268e6), ago(48e6), () =>
       terrain({
-        radiusMeters: 9e4,
-        ampMeters: 900,
-        featureMeters: 7e3,
-        flattenMeters: 1.2e4,
+        radiusMeters: 2.0e5,
+        ampMeters: 1600,
+        featureMeters: 1.4e4,
+        flattenMeters: 2.4e4,
         seed: 83,
         haze: 0x22140e,
         rock: 0x241d19,
@@ -1139,9 +1210,16 @@ export function makeLayers(uAt, tAt) {
             lava: plin([[268e6, 0], [255e6, 1], [246e6, 0.9], [200e6, 0]], ya),
             // Life comes back — ten million years, as the copy says — and then
             // the K–Pg strips it again.
-            cover: plin([[252e6, 0], [240e6, 0.15], [180e6, 0.7], [66.6e6, 0.7], [65.8e6, 0.08]], ya),
-            sun: plin([[268e6, 0.28], [200e6, 0.42], [100e6, 0.5], [66.6e6, 0.5], [65.8e6, 0.12]], ya),
-            lightColor: 0xd8a070,
+            cover: plin([[252e6, 0], [240e6, 0.15], [180e6, 0.7], [66.1e6, 0.7], [66.0e6, 0.05]], ya),
+            // The ground goes dark AT the strike, not gradually before it. On
+            // the new segment those two dates are half a screen apart, so the
+            // hand-off has to be keyed inside the impact window rather than
+            // across a comfortable million years.
+            sun: plin([[268e6, 0.28], [200e6, 0.42], [100e6, 0.5], [66.1e6, 0.5], [66.03e6, 0.8], [65.96e6, 0.55], [65.9e6, 0.06]], ya),
+            // Lit by the fireball for as long as there is one. The sky's own
+            // sun is switched off at the strike, so without this the ground
+            // goes black underneath the brightest thing in the journey.
+            lightColor: mixHex(0xd8a070, 0xffd0a0, clamp01(plin([[66.1e6, 0], [66.0e6, 1], [65.9e6, 0]], ya))),
             fields: 0,
             urban: 0,
           };
@@ -1205,38 +1283,122 @@ export function makeLayers(uAt, tAt) {
         respectBand: false,
         opacity: ({ u, local }) =>
           band(local, 0.03, 0.12, 0.9, 0.99)
-          * plin([[180e6, 0.75], [67e6, 0.75], [65e6, 0.05], [40e6, 0.5], [12e6, 0.6]], yaAt(u)),
+          * plin([[180e6, 0.75], [66.08e6, 0.75], [65.98e6, 0.05], [40e6, 0.5], [12e6, 0.6]], yaAt(u)),
       })),
 
     // --- ten kilometres of rock ----------------------------------------------
     // Chicxulub. Staged like the Moon-forming impact: an approach, a strike, an
     // aftermath — the pattern that beat established.
-    L('kpg-bolide', ago(67e6), ago(65.8e6), () =>
+    //
+    // Every envelope below is keyed inside 66.2 → 65.9 Ma, the beat's own linear
+    // segment, and the numbers are not arbitrary: the beat's scroll midpoint is
+    // 66.0 Ma, so that is where the fireball has to be at full and the ejecta
+    // curtain still rising. The previous staging ran 67 → 65.4 Ma and put every
+    // one of those phases in the first two percent of the beat's scroll.
+    // The sequence peaks at 66.0 Ma, not at the instant of contact. A frame
+    // sampled AT the moment of impact shows a bright dot and nothing else —
+    // the fireball, the curtain and the wave all need a few tens of thousands
+    // of years of this segment to become the picture. So the bolide arrives at
+    // 66.05 and the beat's midpoint catches the thing at full size.
+    L('kpg-bolide', ago(66.25e6), ago(66.02e6), () =>
       glowSphere({
         radiusMeters: 6e3,
         offsetMeters: ({ u }) => plin([
-          [66.9e6, [3.4e4, 2.6e4, -1.2e4]],
-          [66.2e6, [0.4e4, 0.15e4, 0]],
+          [66.2e6, [1.5e5, 1.1e5, -5e4]],
+          [66.05e6, [0.4e4, 0.15e4, 0]],
         ], yaAt(u)),
         color: 0xfff2d0,
         haloColor: 0xffa64a,
         haloScale: 6,
         opacity: ({ u }) => plin([
-          [67.0e6, 0], [66.85e6, 1], [66.25e6, 1], [66.15e6, 0],
+          [66.2e6, 0], [66.17e6, 1], [66.07e6, 1], [66.05e6, 0],
         ], yaAt(u)),
       })),
-    L('kpg-flash', ago(66.4e6), ago(64e6), () =>
+    // The fireball, lifting off the ground. Sized generously and offset UPWARD:
+    // a glow centred on the origin sits on the skyline and reads as a sunrise,
+    // which is exactly what the first version of this looked like next to the
+    // Siberian sun it was competing with.
+    L('kpg-flash', ago(66.07e6), ago(65.6e6), () =>
       glowSphere({
-        radiusMeters: 9e4,
+        // A sprite of radius × haloScale world units, and the halo texture's
+        // bright core is about a quarter of that. 4.2e4 × 7 was ten units of
+        // glare across a four-unit frame: a white page with a caption on it.
+        // Straddling the horizon, not floating in the sky. The camera is six
+        // units out, so anything more than about half a unit up sits twenty
+        // degrees above the eyeline — where the reader has been trained by
+        // every other frame in this journey to read a bright round thing as a
+        // star. Half-buried in the ground it can only be an explosion.
+        radiusMeters: 7e3,
+        offsetMeters: ({ u }) => [0, plin([
+          [66.05e6, 1.2e3], [65.99e6, 4.5e3], [65.9e6, 1.1e4],
+        ], yaAt(u)), 0],
         color: 0xffffff,
-        haloColor: 0xffd9a0,
-        haloScale: 5,
+        haloColor: 0xffcf8a,
+        haloScale: 4.5,
         opacity: ({ u }) => plin([
-          [66.25e6, 0], [66.1e6, 1], [65.8e6, 0.25], [65e6, 0],
+          [66.06e6, 0], [66.03e6, 0.85], [65.98e6, 0.7], [65.93e6, 0.25], [65.8e6, 0],
+        ], yaAt(u)),
+      })),
+    // The ejecta curtain: rock thrown clear of the crater on ballistic arcs.
+    // This is the piece the sequence was missing — a flash and a ring read as
+    // an explosion happening TO the ground, and what the copy describes is ten
+    // kilometres of rock going through it and coming back out.
+    //
+    // DARK, and normal-blended. Additive sparks beside a fireball are the same
+    // lesson the molecular cloud and the volcanic ash taught: light added on
+    // top of light is more light. What makes debris read as debris is that it
+    // BLOCKS the thing behind it, and the thing behind it here is the brightest
+    // object in the journey.
+    L('kpg-ejecta', ago(66.02e6), ago(65.86e6), () =>
+      particleField({
+        count: 2600,
+        distribution: 'disk',
+        innerRadius: 0.1,
+        thickness: 0.3,
+        seed: 107,
+        blending: 'normal',
+        colorA: 0x2e2018,
+        colorB: 0x090605,
+        colorMode: 'random',
+        size: 8,
+        maxSize: 20,
+        jitter: 0.04,
+        radiusMeters: ({ u }) => plog([[66.05e6, 4e3], [65.95e6, 4.5e4]], yaAt(u)),
+        // rises out of the crater and falls back — the arc, not just a spray
+        offsetMeters: ({ u }) => [0, plin([
+          [66.05e6, 0], [65.99e6, 5e3], [65.9e6, 1.2e3],
+        ], yaAt(u)), 0],
+        respectBand: false,
+        opacity: ({ u }) => plin([
+          [66.06e6, 0], [66.03e6, 1], [65.96e6, 0.85], [65.88e6, 0],
+        ], yaAt(u)),
+      })),
+    // …and the hot fraction of it, thrown highest and burning. Small, sparse
+    // and additive: this is the glint on the curtain, not the curtain.
+    L('kpg-sparks', ago(66.03e6), ago(65.9e6), () =>
+      particleField({
+        count: 420,
+        distribution: 'disk',
+        innerRadius: 0.06,
+        thickness: 0.5,
+        seed: 109,
+        colorA: 0xfff0c8,
+        colorB: 0xe0621a,
+        colorMode: 'random',
+        size: 4,
+        maxSize: 11,
+        twinkle: 0.6,
+        radiusMeters: ({ u }) => plog([[66.04e6, 3e3], [65.93e6, 6e4]], yaAt(u)),
+        offsetMeters: ({ u }) => [0, plin([
+          [66.04e6, 0], [65.98e6, 9e3], [65.91e6, 2e3],
+        ], yaAt(u)), 0],
+        respectBand: false,
+        opacity: ({ u }) => plin([
+          [66.04e6, 0], [66.02e6, 1], [65.95e6, 0.6], [65.9e6, 0],
         ], yaAt(u)),
       })),
     // The shockwave, as an expanding ring on the ground.
-    L('kpg-shock', ago(66.3e6), ago(62e6), () =>
+    L('kpg-shock', ago(66.02e6), ago(65.2e6), () =>
       particleField({
         count: 7000,
         distribution: 'disk',
@@ -1247,14 +1409,14 @@ export function makeLayers(uAt, tAt) {
         colorB: 0xa03810,
         size: 3.0,
         maxSize: 9,
-        radiusMeters: ({ u }) => plog([[66.15e6, 6e3], [65.4e6, 5.5e4], [64e6, 1.4e5]], yaAt(u)),
+        radiusMeters: ({ u }) => plog([[66.05e6, 4e3], [65.99e6, 4e4], [65.5e6, 3.5e5]], yaAt(u)),
         opacity: ({ u }) => plin([
-          [66.2e6, 0], [66.05e6, 0.9], [65.2e6, 0.35], [63.5e6, 0],
+          [66.05e6, 0], [66.02e6, 0.95], [65.94e6, 0.5], [65.4e6, 0],
         ], yaAt(u)),
       })),
     // Then years of dust. Normal blending, because this layer's whole job is to
     // take light OUT of the sky.
-    L('kpg-dust', ago(66.2e6), ago(40e6), () =>
+    L('kpg-dust', ago(66.04e6), ago(40e6), () =>
       particleField({
         count: 2600,
         distribution: 'cloud',
@@ -1271,7 +1433,7 @@ export function makeLayers(uAt, tAt) {
         offsetMeters: [0, 1.6e5, 0],
         respectBand: false,
         opacity: ({ u, local }) =>
-          band(local, 0.03, 0.12) * plin([[66.2e6, 0], [65.8e6, 0.85], [58e6, 0.5], [42e6, 0]], yaAt(u)),
+          band(local, 0.03, 0.12) * plin([[66.02e6, 0], [65.95e6, 0.85], [58e6, 0.5], [42e6, 0]], yaAt(u)),
       })),
 
     // --- the surface ---------------------------------------------------------
@@ -1339,9 +1501,9 @@ export function makeLayers(uAt, tAt) {
           const sky = skyAt(ya);
           return {
             cover: plin([[30e6, 0.45], [2e6, 0.55], [12e3, 0.62], [5e3, 0.5], [260, 0.42], [1, 0.4]], ya),
-            fields: plin([[14e3, 0], [10e3, 0.7], [6e3, 0.92], [600, 0.85], [120, 0.5], [1, 0.35]], ya),
+            fields: plin([[14e3, 0], [10e3, 0.8], [6e3, 0.92], [600, 0.85], [120, 0.5], [1, 0.35]], ya),
             urban: plin([[6.4e3, 0], [5.2e3, 0.6], [900, 0.65], [260, 0.85], [1, 0.92]], ya),
-            sun: sky.day,
+            sun: sky.groundSun,
             haze: sky.seam,
             lightColor: sky.light,
             // the level plain grows with the settlement that stands on it
@@ -1356,7 +1518,11 @@ export function makeLayers(uAt, tAt) {
     // wavelengths hundreds of metres, so close up it is one flat brown sheet.
     // A second, small terrain takes over below ~500 m — the same split the
     // seafloor already uses, for the same reason.
-    L('woodland-ground', ago(7.2e6), ago(88e3), () =>
+    // Extended from 88 kyr to 4.6 kyr. Every beat from the hominin split to the
+    // first carts now happens at a 40–110 m frame, and this is the only ground
+    // that has texture at those widths — the 30 km one is a single flat colour
+    // there, which is the defect it was split off to fix in the first place.
+    L('woodland-ground', ago(7.2e6), ago(4.6e3), () =>
       terrain({
         radiusMeters: 900,
         ampMeters: 5,
@@ -1371,21 +1537,26 @@ export function makeLayers(uAt, tAt) {
           const ya = yaAt(u);
           const sky = skyAt(ya);
           return {
-            sun: sky.day,
-            cover: plin([[7e6, 0.6], [2e6, 0.5], [300e3, 0.45]], ya),
+            sun: sky.groundSun,
+            cover: plin([[7e6, 0.6], [2e6, 0.5], [300e3, 0.45], [14e3, 0.5], [10e3, 0.62], [5e3, 0.5]], ya),
+            // Turned earth under the crop, and beaten ground around the village.
+            dry: mixHex(0x6d5f3e, 0x5b4527, clamp01(plin([[13e3, 0], [9.5e3, 1], [5e3, 0.8]], ya))),
             haze: sky.seam,
             lightColor: sky.light,
             fields: 0,
             urban: 0,
           };
         },
-        opacity: ({ local, rebase }) =>
-          band(local, 0.02, 0.08, 0.93, 0.99) * clamp01((580 - rebase.frameMeters()) / 260),
+        // Bottom gate as well as a top one. The writing beat dives to a 1.5 m
+        // frame, where a 900 m disc is 600 world units of plane sitting under
+        // the camera — well outside the band anything else is allowed to
+        // occupy, and terrains are exempt from the band by design.
+        opacity: ({ local, rebase }) => band(local, 0.02, 0.08, 0.93, 0.99) * frames(rebase, 8, 580),
       })),
     // Open woodland — the habitat the split actually happened in. Trees are the
     // only thing at this scale that gives the frame depth: without them a
     // savanna is an empty plane no matter how well it is lit.
-    L('woodland-trees', ago(7.0e6), ago(92e3), () =>
+    L('woodland-trees', ago(7.0e6), ago(5.0e3), () =>
       silhouette({
         kind: 'tree',
         count: 80,
@@ -1394,12 +1565,19 @@ export function makeLayers(uAt, tAt) {
         areaMeters: 130,
         heightMeters: [3.5, 12],
         centreClear: 16,
-        nearFadeMeters: 22,
+        // 22 → 45. At the 25–50 m frames the later beats use, a 12 m tree
+        // thirty metres off the lens is a grey wall across a third of the
+        // frame, and half-faded is worse than either gone or solid.
+        nearFadeMeters: 45,
         sway: 0.015,
         color: 0x0c120e,
         rim: 0x6d7a4e,
-        opacity: ({ local, rebase }) =>
-          band(local, 0.03, 0.12, 0.9, 0.99) * clamp01((520 - rebase.frameMeters()) / 240),
+        // Thinned once people start clearing land, but never gone: a treeline
+        // is what gives every one of these scenes a horizon to stand against.
+        opacity: ({ u, local, rebase }) =>
+          band(local, 0.03, 0.12, 0.9, 0.99)
+          * frames(rebase, 9, 520)
+          * plin([[20e3, 1], [11e3, 0.55], [6e3, 0.4]], yaAt(u)),
       })),
     // …and the subject of the beat. "There is no first human" — so they are a
     // scattered group, not a posed pair, and they are silhouettes because at
@@ -1496,65 +1674,255 @@ export function makeLayers(uAt, tAt) {
         opacity: ({ local, t }) => band(local, 0.05, 0.2, 0.9, 0.98) * (0.7 + 0.2 * Math.sin(t * 4.3 + 4)),
       })),
 
-    // Out of Africa, seen from altitude at night: fires multiplying across the
-    // plain. Migration drawn as the spread of firelight — points lying on the
-    // terrain plane, some swallowed by hills, which is what keeps the spread
-    // looking settled-in rather than sprinkled-on.
-    L('migration-fires', ago(105e3), ago(15e3), () =>
+    // --- out of Africa --------------------------------------------------------
+    // This was a night aerial at a 14 km frame, and there was nothing it could
+    // show. A person is a third of a pixel there, the 30 km ground disc was
+    // half the distance to the camera, and the daylight curve had already
+    // returned to afternoon by the beat's own midpoint — so what survived was
+    // 850 orange dots on black, which is exactly what it looked like.
+    //
+    // Migration is now told at the scale of the people doing it: a band walking
+    // under a moon, a second band further out, and camps strung back toward the
+    // horizon. The breadth is in the chain of fires; the meaning is in the fact
+    // that they are walking.
+    L('trek-near', ago(105e3), ago(16e3), () =>
+      silhouette({
+        kind: 'figure',
+        kindOpts: { tool: 0.45 },
+        count: 8,
+        variants: 6,
+        seed: 211,
+        areaMeters: 18,
+        centreClear: 4,
+        nearFadeMeters: 8,
+        heightMeters: [1.55, 1.82],
+        offsetMeters: [10, 0, 8],
+        color: 0x05070c,
+        rim: 0x7f96c8, // moonlight, not firelight
+        opacity: ({ local, rebase }) =>
+          band(local, 0.05, 0.16, 0.9, 0.98) * clamp01((300 - rebase.frameMeters()) / 150),
+      })),
+    L('trek-far', ago(105e3), ago(16e3), () =>
+      silhouette({
+        kind: 'figure',
+        count: 7,
+        variants: 5,
+        seed: 223,
+        areaMeters: 22,
+        centreClear: 6,
+        nearFadeMeters: 10,
+        heightMeters: [1.45, 1.7],
+        offsetMeters: [-24, 0, -30],
+        color: 0x04060a,
+        rim: 0x63779f,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.06, 0.2, 0.9, 0.98) * clamp01((300 - rebase.frameMeters()) / 150) * 0.85,
+      })),
+    // One hearth close enough to have a shape, and the rest as a chain of camps
+    // running back toward the horizon. Clumped, not scattered: people camp in
+    // groups, and a uniform sprinkle is the one arrangement that reads as a
+    // particle system rather than as a population.
+    L('trek-fire', ago(102e3), ago(16e3), () =>
+      glowSphere({
+        radiusMeters: 1.4,
+        offsetMeters: [-7, 0.8, 9],
+        color: 0xffc27a,
+        haloColor: 0xff9a40,
+        haloScale: 8,
+        opacity: ({ local, t }) =>
+          band(local, 0.05, 0.16, 0.9, 0.98) * (0.75 + 0.18 * Math.sin(t * 5.7)),
+      })),
+    L('trek-camps', ago(102e3), ago(15e3), () =>
       particleField({
-        count: 850,
-        distribution: 'disk',
-        thickness: 0.004,
+        count: 260,
+        distribution: 'cloud',
+        clumps: 11,
+        clumpSpread: 0.045,
+        flattenY: 0.012,
         seed: 59,
         colorA: 0xffd9a0,
         colorB: 0xff8a50,
         colorMode: 'random',
-        size: 3.2,
-        maxSize: 7,
-        twinkle: 0.55,
-        radiusMeters: 1.2e4,
-        offsetMeters: [0, 45, 0],
-        opacity: ({ local }) => band(local, 0.05, 0.25, 0.75, 0.95) * 0.85,
+        size: 3.4,
+        maxSize: 8,
+        twinkle: 0.6,
+        radiusMeters: 1.6e3,
+        offsetMeters: [0, 4, 0],
+        // Off the band: these are the far distance by definition, and points are
+        // sized in screen space, so a camp a kilometre out is simply a dot near
+        // the horizon rather than something that has to fit in the frame.
+        respectBand: false,
+        opacity: ({ local }) => band(local, 0.05, 0.2, 0.86, 0.97) * 0.9,
       })),
 
-    // Settlements, in three ages that cross-fade: a farming hamlet, the
-    // mudbrick city of the writing beat (lamplit, faintly), and the industrial
-    // city the pull-back leaves behind (electrified, smoking).
-    L('hamlet', ago(11.5e3), ago(5.4e3), () =>
+    // --- farming --------------------------------------------------------------
+    // Two readings, because the beat has two. From the air it is the PATTERN on
+    // the land — that one the ground's own `fields` drive already told. From
+    // inside it is standing grain and people bent over it, and that one was
+    // missing entirely: the beat was a 2.2 km aerial from end to end, at which
+    // width a farmer is a fifth of a pixel and a wheat ear is nothing at all.
+    //
+    // Crops are planted in ROWS. That is the entire difference between this and
+    // a meadow, and no amount of colour work substitutes for it.
+    L('crop-field', ago(12.5e3), ago(5.6e3), () =>
+      silhouette({
+        kind: 'crop',
+        // The field has to ENCLOSE the camera, which sits 1.5 frame-widths out
+        // from the origin. At 42 m the nearest grain was still 24 m in front of
+        // the lens and the bottom half of the frame was bare earth — a picture
+        // of a field, taken from outside it.
+        count: 5200,
+        variants: 7,
+        seed: 251,
+        areaMeters: 85,
+        // Rows read only when the gap BETWEEN them is several times the spacing
+        // ALONG them. The first attempt had 1.5 m rows with plants 7 m apart in
+        // each row, which is a random scatter with extra steps.
+        rowMeters: 3.4,
+        rowAngle: 0.55,
+        // Einkorn, and shorter than the people working it — which is the whole
+        // reason to get the height right. At 1.25 m the harvesters showed a
+        // head and shoulders above the crop and read as more crop.
+        heightMeters: [0.6, 0.95],
+        nearFadeMeters: 12,
+        sway: 0.03,
+        color: 0x2a2410,
+        rim: 0xd8b25c, // ripe grain catching the low sun
+        opacity: ({ u, local, rebase }) =>
+          band(local, 0.04, 0.14, 0.9, 0.99)
+          // Out below a 26 m frame: the wheel beat is tighter than that, and a
+          // 42 m field of standing grain in front of the subject is a wall.
+          * frames(rebase, 26, 150)
+          * plin([[13e3, 0.35], [10e3, 1], [6.9e3, 1], [6.2e3, 0.6]], yaAt(u)),
+      })),
+    // The people doing it — stooped, with tools. Work is a POSTURE: a field of
+    // upright figures reads as a crowd standing about in a meadow.
+    // Ends at 6.3 kyr, not 5.6: the wheel beat sits at a 24 m frame, and a
+    // harvester offset toward the camera for the FARMING frame lands three
+    // metres off the lens there, cropped by the copy panel.
+    L('harvesters', ago(11.5e3), ago(6.3e3), () =>
+      silhouette({
+        kind: 'figure',
+        // Half of them upright. At forty pixels a bent figure is a lump; the
+        // stance is the only thing that says "person", so most of the group has
+        // to be standing even though most of the work is not done standing up.
+        kindOpts: { stoop: 0.45, tool: 0.6 },
+        count: 10,
+        variants: 6,
+        seed: 257,
+        // Pulled toward the camera. Distance from the ORIGIN barely changes how
+        // big something looks; landing on the camera's side of the scatter is
+        // what does, and that needs an offset, not a wider spread.
+        areaMeters: 16,
+        offsetMeters: [9, 0, 24],
+        centreClear: 4,
+        nearFadeMeters: 8,
+        heightMeters: [1.7, 1.95],
+        color: 0x0a0a07,
+        // Brighter than the crop they stand in, or they disappear into it —
+        // the field's own rim is a warm gold and a figure lit the same way is
+        // just a taller stalk.
+        rim: 0xffd9a0,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.05, 0.18, 0.9, 0.98) * frames(rebase, 9, 160),
+      })),
+    L('farm-oxen', ago(11e3), ago(6.3e3), () =>
+      silhouette({
+        kind: 'beast',
+        count: 3,
+        variants: 4,
+        seed: 263,
+        areaMeters: 22,
+        offsetMeters: [-14, 0, 20],
+        centreClear: 8,
+        nearFadeMeters: 9,
+        heightMeters: [2.9, 3.3], // wide form in a square cell — about 1.5 m tall
+        color: 0x0b0a08,
+        rim: 0xbb9457,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.06, 0.2, 0.9, 0.98) * frames(rebase, 10, 170),
+      })),
+
+    // --- the wheel ------------------------------------------------------------
+    // The old version of this beat was a 430 m village at dusk. Everything in
+    // it was true and none of it was the subject: there was no wheel anywhere
+    // on screen. A cart at a 40 m frame puts a spoked rim eighty pixels across
+    // in the foreground, which is the one shape the beat owes the reader.
+    L('carts', ago(6.9e3), ago(4.7e3), () =>
+      silhouette({
+        kind: 'cart',
+        count: 4,
+        variants: 4,
+        seed: 269,
+        // Close in and drawn big. A cart is only the subject of this beat if
+        // the SPOKES survive, and spokes need the wheel to be forty-odd pixels
+        // across — which at these frames means putting the cart within about
+        // fifteen metres of the origin and authoring it generously.
+        areaMeters: 15,
+        centreClear: 4,
+        nearFadeMeters: 6,
+        heightMeters: [3.6, 4.1],
+        color: 0x0a0906,
+        rim: 0xe0a860,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.06, 0.2, 0.88, 0.98) * frames(rebase, 6, 110),
+      })),
+    L('cart-oxen', ago(6.9e3), ago(4.7e3), () =>
+      silhouette({
+        kind: 'beast',
+        count: 4,
+        variants: 4,
+        seed: 271,
+        areaMeters: 17,
+        centreClear: 6,
+        nearFadeMeters: 7,
+        heightMeters: [3.4, 3.9],
+        color: 0x0a0906,
+        rim: 0xd29a5c,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.07, 0.22, 0.88, 0.98) * frames(rebase, 6, 110),
+      })),
+    L('village-folk', ago(7e3), ago(4.7e3), () =>
+      silhouette({
+        kind: 'figure',
+        kindOpts: { tool: 0.3 },
+        count: 6,
+        variants: 5,
+        seed: 277,
+        areaMeters: 20,
+        centreClear: 7,
+        nearFadeMeters: 6,
+        heightMeters: [1.6, 1.85],
+        color: 0x090805,
+        rim: 0xffcf90,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.06, 0.2, 0.88, 0.98) * frames(rebase, 6, 120),
+      })),
+    // The village behind them. `clearMeters` has to clear the CAMERA, not just
+    // the origin: the camera sits 1.5 frame-widths out, so a 42 m hole around
+    // the origin still let the grid drop a hut ten metres off the lens, where
+    // a 4 m mud wall is a tan slab across a third of the frame. Both of those
+    // appeared, in two different beats, before the number went up.
+    L('hamlet', ago(11.5e3), ago(4.6e3), () =>
       blocks({
-        count: 26,
-        areaMeters: 240,
-        spacingMeters: 26,
-        heightMeters: [2.5, 4.5],
+        count: 34,
+        areaMeters: 320,
+        clearMeters: 125,
+        spacingMeters: 24,
+        heightMeters: [2.4, 4.2],
         seed: 5,
         color: 0x6b5a44,
         lightDir: [0.7, 0.28, 0.5],
-        sun: () => 0.75,
-        opacity: ({ local }) => band(local, 0.06, 0.2, 0.8, 0.95),
+        sun: ({ u }) => skyAt(yaAt(u)).groundSun,
+        opacity: ({ local, rebase }) => band(local, 0.06, 0.2, 0.85, 0.97) * frames(rebase, 10, 240),
       })),
-    L('city', ago(6e3), ago(600), () =>
-      blocks({
-        count: 480,
-        areaMeters: 850,
-        spacingMeters: 34,
-        heightMeters: [3, 10],
-        seed: 9,
-        color: 0x6e5d45,
-        lightDir: [0.7, 0.28, 0.5],
-        sun: () => 0.55,
-        night: ({ u }) => plin([[5.4e3, 0], [4.6e3, 0.2], [700, 0.25]], yaAt(u)),
-        opacity: ({ local }) => band(local, 0.05, 0.18, 0.85, 0.97),
-      })),
-
-    // Hearth- and lamplight over the settlements. At the aerial frames where
-    // a whole village or city fits, a 4 m hut is sub-pixel — but a warm point
-    // under bloom reads at ANY scale, so the lights are what say "inhabited".
-    // Same trick the Out of Africa constellation uses, at town size.
-    L('village-lamps', ago(10.5e3), ago(4.9e3), () =>
+    L('village-lamps', ago(10.5e3), ago(4.6e3), () =>
       particleField({
-        count: 34,
-        distribution: 'disk',
-        thickness: 0.01,
+        count: 40,
+        distribution: 'cloud',
+        clumps: 9,
+        clumpSpread: 0.09,
+        flattenY: 0.02,
         seed: 71,
         colorA: 0xffd9a0,
         colorB: 0xff9a50,
@@ -1562,15 +1930,37 @@ export function makeLayers(uAt, tAt) {
         size: 3.4,
         maxSize: 7,
         twinkle: 0.5,
-        radiusMeters: 210,
-        offsetMeters: [0, 7, 0],
-        opacity: ({ local }) => band(local, 0.08, 0.25, 0.8, 0.95) * 0.9,
+        radiusMeters: 140,
+        offsetMeters: [0, 3, 0],
+        opacity: ({ u, local }) =>
+          band(local, 0.08, 0.25, 0.85, 0.97) * plin([[10e3, 0.2], [6.6e3, 0.95]], yaAt(u)),
       })),
-    L('city-lamps', ago(5.7e3), ago(650), () =>
+
+    // --- writing --------------------------------------------------------------
+    // The city, for the opening of the beat, before the dive. Sized for a 40 m
+    // frame rather than the 900 m one it used to have: at these widths the
+    // camera is inside the streets, which is where the accountants were.
+    L('city', ago(5.6e3), ago(3.6e3), () =>
+      blocks({
+        count: 220,
+        areaMeters: 450,
+        clearMeters: 110,
+        spacingMeters: 23,
+        heightMeters: [2.6, 8],
+        seed: 9,
+        color: 0x6e5d45,
+        lightDir: [0.7, 0.28, 0.5],
+        sun: ({ u }) => skyAt(yaAt(u)).groundSun,
+        night: ({ u }) => plin([[5.4e3, 0], [4.6e3, 0.25], [3.6e3, 0.3]], yaAt(u)),
+        opacity: ({ local, rebase }) => band(local, 0.05, 0.18, 0.85, 0.97) * frames(rebase, 11, 260),
+      })),
+    L('city-lamps', ago(5.7e3), ago(3.4e3), () =>
       particleField({
-        count: 150,
-        distribution: 'disk',
-        thickness: 0.01,
+        count: 120,
+        distribution: 'cloud',
+        clumps: 16,
+        clumpSpread: 0.08,
+        flattenY: 0.03,
         seed: 79,
         colorA: 0xffd9a0,
         colorB: 0xff8a50,
@@ -1578,60 +1968,233 @@ export function makeLayers(uAt, tAt) {
         size: 3.0,
         maxSize: 6,
         twinkle: 0.45,
-        radiusMeters: 780,
-        offsetMeters: [0, 9, 0],
-        opacity: ({ local }) => band(local, 0.06, 0.2, 0.85, 0.97) * 0.8,
+        radiusMeters: 380,
+        offsetMeters: [0, 4, 0],
+        opacity: ({ local, rebase }) => band(local, 0.06, 0.2, 0.85, 0.97) * frames(rebase, 12, 400) * 0.9,
       })),
-    L('industrial', ago(800), ago(1.1), () =>
-      blocks({
-        count: 1600,
-        areaMeters: 5500,
-        spacingMeters: 105,
-        heightMeters: [5, 38],
-        footprint: 0.55,
-        seed: 23,
-        color: 0x5f5b55,
+    // The floor the tablets lie on. Its own terrain because at a 1.5 m frame
+    // every other ground in the journey is hundreds of world units across.
+    L('scribe-floor', ago(5.0e3), ago(500), () =>
+      terrain({
+        radiusMeters: 14,
+        ampMeters: 0.06,
+        featureMeters: 2.2,
+        flattenMeters: 3,
+        seed: 311,
+        rock: 0x2a2118,
+        dry: 0x3a2d20,
+        lightDir: [0.55, 0.42, 0.6],
+        lightColor: 0xffb066,
+        segments: 140,
+        surface: ({ u }) => ({
+          sun: 0.5,
+          cover: 0,
+          fields: 0,
+          urban: 0,
+          haze: scaleHex(skyAt(yaAt(u)).horizon, 0.7),
+        }),
+        opacity: ({ local, rebase }) => band(local, 0.05, 0.18, 0.9, 0.99) * frames(rebase, 0.4, 9),
+      })),
+    // The subject. Uruk account tablets, ruled into boxes, lit by one lamp —
+    // "the first time information outlives the person holding it", at the only
+    // scale at which that sentence has a picture.
+    L('tablets', ago(4.8e3), ago(430), () =>
+      panel({
+        kind: 'cuneiform',
+        count: 5,
+        variants: 5,
+        seed: 313,
+        sizeMeters: [0.32, 0.4],
+        areaMeters: 0.55,
+        // Leaned well back, because the camera looks DOWN at these. At 0.5 they
+        // stood almost upright on the skyline and read as crates rather than as
+        // something lying on a scribe's bench.
+        tiltRad: 0.95,
+        ambient: 0x241f1a,
+        lampColor: 0xffab5e,
+        lampAt: [0.34, 0.28],
+        lamp: ({ t }) => 1.7 + 0.22 * Math.sin(t * 4.3) + 0.08 * Math.sin(t * 11.7),
+        opacity: ({ local, rebase }) => band(local, 0.05, 0.16, 0.9, 0.99) * frames(rebase, 0.35, 7),
+      })),
+    L('scribe-lamp', ago(4.8e3), ago(430), () =>
+      glowSphere({
+        radiusMeters: 0.03,
+        // Back and to the side, not on top of the tablet it is meant to light.
+        offsetMeters: [-0.62, 0.09, 0.1],
+        color: 0xffd9a0,
+        haloColor: 0xff9a40,
+        haloScale: 9,
+        opacity: ({ local, rebase, t }) =>
+          band(local, 0.05, 0.16, 0.9, 0.99) * frames(rebase, 0.35, 7)
+          * (0.8 + 0.16 * Math.sin(t * 5.3) + 0.06 * Math.sin(t * 13.1)),
+      })),
+
+    // --- machines -------------------------------------------------------------
+    // Also four decades too far out before: a 7 km frame makes a 40 m chimney
+    // six pixels tall, so the industrial revolution rendered as a grey smudge
+    // with lights in it, and the pull-back to orbit began at the beat's own
+    // midpoint. At 280 m the mills have walls, the chimneys have plumes, and
+    // the beat holds still until the last sixth of its scroll.
+    L('mill-ground', ago(700), ago(6), () =>
+      terrain({
+        radiusMeters: 3000,
+        ampMeters: 9,
+        featureMeters: 190,
+        flattenMeters: 1500,
+        seed: 317,
+        rock: 0x2f2b26,
+        dry: 0x3c382f,
         lightDir: [0.7, 0.28, 0.5],
-        sun: () => 0.55,
-        night: ({ u }) => plin([[500, 0.05], [260, 0.3], [120, 0.6], [30, 0.95], [1, 1]], yaAt(u)),
-        opacity: ({ local }) => band(local, 0.04, 0.15),
+        segments: 240,
+        surface: ({ u }) => {
+          const ya = yaAt(u);
+          const sky = skyAt(ya);
+          return {
+            sun: sky.groundSun * 0.8,
+            cover: plin([[500, 0.3], [120, 0.16], [1, 0.12]], ya),
+            haze: sky.seam,
+            lightColor: sky.light,
+            fields: 0,
+            urban: plin([[600, 0.3], [200, 0.7], [1, 0.85]], ya),
+          };
+        },
+        opacity: ({ local, rebase }) => band(local, 0.04, 0.15, 0.92, 0.99) * frames(rebase, 70, 620),
       })),
-    // The electrified city's glow. Window fragments are sub-pixel at a 7 km
-    // frame; the point field is what actually reads — and during the pull-back
-    // it becomes the shrinking patch of light that hands off to the planet's
-    // own night-side cities.
-    L('industrial-lights', ago(700), ago(1.2), () =>
+    // 1600 m, not 720. The camera sits six units out — 1,700 m at this frame —
+    // so a town of 720 m radius was entirely BEYOND it, and the bottom third of
+    // every frame was empty ground between the lens and the first building. A
+    // town wide enough to contain the camera gives the shot a foreground.
+    L('mills', ago(600), ago(6), () =>
+      blocks({
+        count: 620,
+        areaMeters: 1600,
+        spacingMeters: 58,
+        heightMeters: [6, 26],
+        footprint: 0.72,
+        seed: 23,
+        color: 0x4a423a,
+        lightDir: [0.7, 0.28, 0.5],
+        sun: ({ u }) => skyAt(yaAt(u)).groundSun * 0.75,
+        // Held well below 1. Lit windows are the loudest thing in the frame and
+        // a fully electrified skyline reads as a modern metropolis — which is
+        // the wrong century for a beat about coal.
+        night: ({ u }) => plin([[400, 0.05], [180, 0.13], [60, 0.2], [20, 0.26], [1, 0.28]], yaAt(u)),
+        opacity: ({ local, rebase }) => band(local, 0.04, 0.15) * frames(rebase, 30, 900),
+      })),
+    // Chimneys are the same archetype with the footprint pulled in and the
+    // heights pushed up — a mill town is legible from its skyline, and its
+    // skyline is thin verticals.
+    L('chimneys', ago(560), ago(6), () =>
+      blocks({
+        count: 40,
+        areaMeters: 1500,
+        spacingMeters: 150,
+        heightMeters: [30, 62],
+        footprint: 0.085,
+        seed: 29,
+        color: 0x3b332c,
+        lightDir: [0.7, 0.28, 0.5],
+        sun: ({ u }) => skyAt(yaAt(u)).groundSun * 0.8,
+        opacity: ({ u, local, rebase }) =>
+          band(local, 0.05, 0.18) * frames(rebase, 30, 900)
+          * plin([[560, 0], [300, 1], [40, 1], [12, 0.5]], yaAt(u)),
+      })),
+    // Plumes. `flattenY` above 1 stretches the clumps into columns, which is
+    // the difference between smoke rising from chimneys and smog lying over a
+    // valley — and normal blending, because this layer's job is to take light
+    // out of the sky rather than add it.
+    L('chimney-smoke', ago(520), ago(6), () =>
       particleField({
-        count: 1400,
-        distribution: 'disk',
-        thickness: 0.008,
+        // Many small points, not few large ones. Fat sprites in tight clumps
+        // rendered as dark polka dots hanging in the sky; smoke has to be
+        // built out of enough grains that its EDGE is soft, or it reads as
+        // objects rather than as air.
+        // BIG and FAINT, not small and solid. Smoke is read from the softness
+        // of its edge, so the sprites have to be several times larger than the
+        // gaps between them and dim enough that only the overlaps go dark.
+        // Small hard points at full strength render as dirt on the lens.
+        count: 2600,
+        distribution: 'cloud',
+        clumps: 40,
+        clumpSpread: 0.16,
+        flattenY: 1.9,
+        seed: 67,
+        blending: 'normal',
+        colorA: 0x453d35,
+        colorB: 0x201b17,
+        size: 34,
+        maxSize: 95,
+        jitter: 0.01,
+        radiusMeters: 1000,
+        offsetMeters: [0, 150, 0],
+        respectBand: false,
+        opacity: ({ u, local, rebase }) =>
+          band(local, 0.05, 0.18) * frames(rebase, 30, 900)
+          * plin([[520, 0], [280, 0.55], [80, 0.8], [20, 0.5], [1, 0.35]], yaAt(u)) * 0.15,
+      })),
+    // Window light and street light, at the scale where the buildings are real…
+    L('mill-lamps', ago(400), ago(6), () =>
+      particleField({
+        count: 300,
+        distribution: 'cloud',
+        clumps: 22,
+        clumpSpread: 0.07,
+        flattenY: 0.06,
         seed: 89,
+        colorA: 0xffd9a0,
+        colorB: 0xff8a40,
+        colorMode: 'random',
+        size: 2.6,
+        maxSize: 5,
+        twinkle: 0.3,
+        radiusMeters: 1500,
+        offsetMeters: [0, 10, 0],
+        opacity: ({ u, local }) =>
+          band(local, 0.04, 0.15) * plin([[400, 0.15], [180, 0.4], [60, 0.6], [20, 0.7]], yaAt(u)) * 0.6,
+      })),
+    // …and the same thing as a whole conurbation, for the pull-back. This is
+    // the layer that hands off to the planet's own night-side cities: it comes
+    // in only once the frame is too wide for a building to exist.
+    L('conurbation-lights', ago(120), ago(1.2), () =>
+      particleField({
+        count: 2200,
+        distribution: 'cloud',
+        clumps: 34,
+        clumpSpread: 0.1,
+        flattenY: 0.02,
+        seed: 97,
         colorA: 0xfff4d0,
         colorB: 0xff9a50,
         colorMode: 'random',
-        size: 2.6,
+        size: 2.4,
         maxSize: 6,
-        twinkle: 0.3,
-        radiusMeters: 4.8e3,
-        offsetMeters: [0, 25, 0],
-        opacity: ({ u, local }) =>
-          band(local, 0.03, 0.12) * plin([[500, 0], [260, 0.3], [120, 0.65], [30, 1], [1, 1]], yaAt(u)) * 0.9,
+        twinkle: 0.25,
+        radiusMeters: 4.5e4,
+        offsetMeters: [0, 200, 0],
+        opacity: ({ u, local, rebase }) =>
+          band(local, 0.03, 0.12) * frames(rebase, 900, 4e5)
+          * plin([[120, 0.4], [40, 0.9], [1, 1]], yaAt(u)),
       })),
-    L('smoke', ago(300), ago(15), () =>
+    // Coal smog lying over the whole valley — the wide, flat counterpart to the
+    // plumes, and what gives the sky its brown horizon in `skyAt`.
+    L('smog', ago(300), ago(9), () =>
       particleField({
         count: 900,
         distribution: 'cloud',
         clumps: 14,
         clumpSpread: 0.09,
-        seed: 67,
+        flattenY: 0.35,
+        seed: 131,
+        blending: 'normal',
         colorA: 0x3a332e,
         colorB: 0x201c19,
-        size: 9,
-        maxSize: 20,
+        size: 40,
+        maxSize: 110,
         jitter: 0.02,
-        radiusMeters: 3e3,
-        offsetMeters: [0, 700, 0],
-        opacity: ({ local }) => band(local, 0.1, 0.35, 0.8, 0.97) * 0.22,
+        radiusMeters: 1.8e3,
+        offsetMeters: [0, 260, 0],
+        respectBand: false,
+        opacity: ({ local, rebase }) => band(local, 0.1, 0.35, 0.8, 0.97) * frames(rebase, 40, 2.2e3) * 0.09,
       })),
 
   ];

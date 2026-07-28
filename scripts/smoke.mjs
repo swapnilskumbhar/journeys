@@ -97,20 +97,34 @@ const vh = spans.map((s) => s * length);
 const SCENE_FROM = 19;
 const SCENE_TO = 30;
 const SCENE_FLOOR = 1.5;
-// Everywhere else the floor is only "did not vanish". It cannot be raised to
-// the same value: the wheel and writing are honestly 1,300 years apart, which
-// on a log-lookback axis is 0.2% of the journey no matter how it is weighted.
-// Moving them apart would mean lying about the dates, so instead they are held
-// to the collision threshold above, expressed in the unit that matters.
+// The human era, 31–39, gets its own floor. It used to be lumped in with
+// "everywhere else" on the argument that the wheel and writing are honestly
+// 1,300 years apart and nothing can be done about it — which was wrong twice
+// over. The dates constrain where a beat SITS, not how much scroll it is given:
+// a segment boundary at each beat's own mark buys any weighting you like
+// without moving a single date. And the consequence of not doing it was that
+// every one of these beats was built, looked at, and found to be showing
+// nothing — at 0.13vh "The wheel" was 120 pixels of scroll, which no amount of
+// work on what it draws could have survived.
+const HUMAN_FROM = 31;
+const HUMAN_FLOOR = 1.2;
+// Everywhere else the floor is only "did not vanish".
 const FLOOR = 0.15;
 
 const scene = vh.slice(SCENE_FROM - 1, SCENE_TO);
+const human = vh.slice(HUMAN_FROM - 1);
 const tightScene = Math.min(...scene);
+const tightHuman = Math.min(...human);
 const tightest = Math.min(...vh);
 ok(
   tightScene >= SCENE_FLOOR,
   `every scene beat (${SCENE_FROM}–${SCENE_TO}) gets ${SCENE_FLOOR}vh of scroll`,
   `tightest ${tightScene.toFixed(2)}vh at beat ${vh.indexOf(tightScene) + 1}`,
+);
+ok(
+  tightHuman >= HUMAN_FLOOR,
+  `every human-era beat (${HUMAN_FROM}+) gets ${HUMAN_FLOOR}vh of scroll`,
+  `tightest ${tightHuman.toFixed(2)}vh at beat ${vh.indexOf(tightHuman) + 1}`,
 );
 ok(
   tightest >= FLOOR,

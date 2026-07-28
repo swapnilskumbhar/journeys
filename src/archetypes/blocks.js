@@ -93,6 +93,7 @@ const fragment = /* glsl */ `
 export function blocks({
   count = 200,
   areaMeters = 800,        // town radius
+  clearMeters = 0,         // keep the middle empty — the subject stands there
   spacingMeters = 34,      // grid pitch
   heightMeters = [3, 10],  // power-law between the two
   footprint = 0.62,        // building width as a fraction of the pitch
@@ -129,32 +130,45 @@ export function blocks({
   mesh.frustumCulled = false;
   mesh.renderOrder = -1;
 
-  // jittered grid, densest at the centre, thinning toward the edge — towns
-  // have cores, not uniform sprawl
+  // Jittered grid, densest at the centre, thinning toward the edge — towns have
+  // cores, not uniform sprawl.
+  //
+  // EVERY cell is scored first and the best `count` are taken. The obvious
+  // version — walk the grid and stop once count instances are placed — silently
+  // builds a crescent: it fills rows of increasing x until it runs out of
+  // instances, so whenever `count` is well under the grid's capacity (which is
+  // every settlement in this journey) the town has no east side. It took a
+  // 1.6 km mill town seen from inside to make that visible; the mudbrick city
+  // had been half a city since the day it was written.
   const seeds = new Float32Array(count);
   const m = new THREE.Matrix4();
   const cells = Math.ceil((areaMeters * 2) / spacingMeters);
-  let placed = 0;
-  outer: for (let pass = 0; pass < 40 && placed < count; pass++) {
-    for (let gx = 0; gx < cells && placed < count; gx++) {
-      for (let gz = 0; gz < cells && placed < count; gz++) {
-        const x = (gx + 0.5) * spacingMeters - areaMeters + (rand() - 0.5) * spacingMeters * 0.5;
-        const z = (gz + 0.5) * spacingMeters - areaMeters + (rand() - 0.5) * spacingMeters * 0.5;
-        const r = Math.hypot(x, z) / areaMeters;
-        if (r > 1) continue;
-        // keep-probability falls off from the core; later passes fill in
-        if (rand() > (1.05 - r * 0.8) * (pass ? 0.5 : 1)) continue;
-        const h = heightMeters[0] + rand() ** 2.6 * (heightMeters[1] - heightMeters[0]) * (1.1 - r * 0.55);
-        const w = spacingMeters * footprint * (0.7 + rand() * 0.6);
-        const d = spacingMeters * footprint * (0.7 + rand() * 0.6);
-        m.makeScale(w, h, d);
-        m.setPosition(x, 0, z);
-        mesh.setMatrixAt(placed, m);
-        seeds[placed] = rand();
-        placed++;
-        if (placed >= count) break outer;
-      }
+  const candidates = [];
+  for (let gx = 0; gx < cells; gx++) {
+    for (let gz = 0; gz < cells; gz++) {
+      const x = (gx + 0.5) * spacingMeters - areaMeters + (rand() - 0.5) * spacingMeters * 0.5;
+      const z = (gz + 0.5) * spacingMeters - areaMeters + (rand() - 0.5) * spacingMeters * 0.5;
+      const dist = Math.hypot(x, z);
+      if (dist < clearMeters) continue;
+      const r = dist / areaMeters;
+      if (r > 1) continue;
+      // low score wins; dividing by the core's keep-probability is what makes
+      // the centre denser than the rim once the list is truncated
+      candidates.push({ x, z, r, score: rand() / (1.05 - r * 0.8) });
     }
+  }
+  candidates.sort((a, b) => a.score - b.score);
+
+  const placed = Math.min(count, candidates.length);
+  for (let i = 0; i < placed; i++) {
+    const { x, z, r } = candidates[i];
+    const h = heightMeters[0] + rand() ** 2.6 * (heightMeters[1] - heightMeters[0]) * (1.1 - r * 0.55);
+    const w = spacingMeters * footprint * (0.7 + rand() * 0.6);
+    const d = spacingMeters * footprint * (0.7 + rand() * 0.6);
+    m.makeScale(w, h, d);
+    m.setPosition(x, 0, z);
+    mesh.setMatrixAt(i, m);
+    seeds[i] = rand();
   }
   // any never-filled instances collapse to zero scale at the origin
   m.makeScale(0, 0, 0);

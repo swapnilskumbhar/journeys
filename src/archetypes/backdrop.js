@@ -130,6 +130,11 @@ export function backdrop({
         if (d.sunColor !== undefined) uniforms.uSunColor.value.set(tmp.set(d.sunColor));
         if (d.bandLift !== undefined) uniforms.uBandLift.value = d.bandLift;
         if (d.sunGain !== undefined) uniforms.uSunGain.value = d.sunGain;
+        // Size and softness are drivable for one reason: at night the source
+        // is the MOON, which is a small hard disc of cold light where the sun
+        // was a warm one. Swapping colour alone leaves a sun-sized moon.
+        if (d.sunSize !== undefined) uniforms.uSunSize.value = d.sunSize;
+        if (d.sunSoft !== undefined) uniforms.uSunSoft.value = d.sunSoft;
         if (d.sunDir !== undefined) uniforms.uSunDir.value.set(...d.sunDir).normalize();
       }
 

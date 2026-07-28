@@ -23,10 +23,12 @@ launch pad → Mars.
   `& "C:\Program Files\nodejs\node.exe" scripts/smoke.mjs`. Covers axis
   round-tripping, segment seams, monotonicity, the rebaser band, and **beat
   pacing — in viewport-heights**: it prints every beat's scroll in vh and fails
-  if a scene beat (19–30) drops under 1.5. Gating on a fraction of the AXIS is
+  if a scene beat (19–30) drops under 1.5 or a human-era beat (31+) under 1.2.
+  Gating on a fraction of the AXIS is
   what let the original pacing bug through — "A star is born" was 0.4 vh, about
   360 px for the whole formation of the solar system, and looked ordinary by
-  every axis-relative measure. Extend it whenever axis or rebase behaviour
+  every axis-relative measure. The human era then repeated it: "The wheel" was
+  0.13 vh. Extend it whenever axis or rebase behaviour
   changes; these are the modules most likely to be wrong in ways that only show
   up 12 decades into a journey.
 - Screenshots — the only reliable way to SEE a journey (the Browser pane is
@@ -52,7 +54,7 @@ launch pad → Mars.
 | src/engine/journey.js | `defineJourney` + registry glob (eager meta.js, lazy index.js) |
 | src/engine/player.js | scroll → u → camera + layers + one swapped copy panel |
 | src/engine/ribbon.js | left→right progress HUD, doubles as navigation |
-| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet |
+| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette, panel, water, blob |
 | src/kit/ | procedural toolkit ported from howitworks (shared by copy) |
 | src/journeys/\<id\>/ | meta.js · axis-def.js · beats.js · layers.js · curve.js · index.js |
 | scripts/ | smoke.mjs · shots.mjs · scroll-check.mjs · video export (**export-video/narration still need retargeting to `__u`**) |
@@ -95,15 +97,62 @@ launch pad → Mars.
 
 ## Status (2026-07-28)
 
-**`big-bang` ships** — 39 beats, Planck epoch to today, 78 vh, its own lazy
+**`big-bang` ships** — 39 beats, Planck epoch to today, 82 vh, its own lazy
 chunk. The frame goes where each beat's subject is and only returns to orbit for
 "Today": cosmic web → galaxy → molecular cloud → protoplanetary disc → the
 Moon-forming impact → a Hadean sea → stromatolite shallows → **one cell at 20
 microns** → the Ediacaran seafloor → out of the water onto a Devonian shore →
-Siberian flood basalt → Chicxulub → savanna campfire → first city → industrial
-skyline → the night-lit planet. Ten archetypes (particleField, glowSphere,
-filaments, planet, terrain, blocks, backdrop, silhouette, **water**, **blob**)
-cover all of it with no bespoke Three.js in the journey folder.
+Siberian flood basalt → **the Chicxulub fireball** → a moonlit migration → a
+grain field with people in it → **an ox cart with spoked wheels** → **a
+lamplit clay tablet at a 1.5 m frame** → a mill town under coal smoke → the
+night-lit planet. Eleven archetypes (particleField, glowSphere, filaments,
+planet, terrain, blocks, backdrop, silhouette, **panel**, water, blob) cover
+all of it with no bespoke Three.js in the journey folder.
+
+Human-era lessons (beats 30–38), the most recent pass:
+
+- **Every era needs the vh gate, not just the one where the bug was found.** The
+  life era got per-beat segments and a 1.5 vh floor; the human era was left on a
+  single lookback segment and "The wheel" came out at **0.13 vh** — 120 pixels of
+  scroll for the whole invention of wheeled transport, Farming at 0.36. Honest
+  dates constrain where a beat SITS, never how much scroll it gets: a segment
+  boundary at each beat's own mark buys any weighting you like. `smoke.mjs` now
+  floors beats 31+ at 1.2 vh.
+- **An instantaneous event inside a long beat needs its own segment.** Beat 30
+  spans 66 → 7 Myr, so the strike was in the first 1% of it and every review
+  frame showed a recovered world. A dedicated linear window (66.2 → 65.9 Ma)
+  plus a *separately weighted* aftermath segment puts the beat's midpoint at
+  66.0 Ma — the fireball. The aftermath's weight is the whole control: fold it
+  back in with the beats that follow and the midpoint slides off the end.
+- **Camera height is in UNITS, and units scale with the frame.** `y = 0.45` is
+  nine metres up at an 80 m frame. Every human beat was being shot from a
+  first-floor window, which puts anything shorter than the camera BELOW the
+  horizon, where a silhouette has dark ground behind it instead of sky. Eye
+  level down here is `y ≈ 0.1`.
+- **Frame ≤ terrain radius / 6**, because the camera sits six units out. The
+  Mesozoic ground was a 9e4 m disc being viewed at 3e4 m frames — the camera was
+  twice as far out as the world was wide.
+- **A scatter has to enclose the camera.** A 42 m crop field photographed from
+  66 m away is a picture of a field taken from outside it. And what changes an
+  instance's apparent size is landing on the camera's side of the group —
+  `offsetMeters`, not a wider `areaMeters`.
+- **`blocks` built crescents, not towns.** Walking the grid and stopping at
+  `count` fills rows of increasing x and quits; every settlement in the journey
+  had been missing its east side since the archetype was written. Score all
+  cells, sort, truncate.
+- **A warm sky turns any bright glow into a sunrise.** The K–Pg fireball lost to
+  its own sky twice — first to the Siberian sun disc, then to the horizon band —
+  before the sky was driven to black at the strike.
+- **Additive debris beside a fireball is invisible.** Same lesson as the ash and
+  the dust, one step further: sparks ADD to the glare they sit in. Dark,
+  normal-blended ejecta is what reads, because it blocks the brightest thing in
+  the frame.
+- **Rows are the difference between a crop and a meadow** — and they only read
+  when the gap between rows is several times the spacing along them.
+- **Some subjects are not shapes.** "Writing" cannot be told with a skyline; the
+  content of the beat is fingernail-sized. `panel` (a slab carrying procedural
+  marks) plus a dive to a 1.5 m frame is the answer, and it is the same move the
+  journey already makes for a living cell.
 
 Life-era lessons (beats 20–30), on top of the surface and exposure ones below:
 
