@@ -29,6 +29,10 @@ export function particleField({
   blending = 'additive',
   // disk only
   thickness = 0.06,
+  // Fraction of the radius left empty at the centre. A filled disc reads as a
+  // spray; a ring reads as something in ORBIT, which is what a debris ring, a
+  // planetary ring or an accretion belt has to say.
+  innerRadius = 0,
   spiralArms = 0,
   spiralWinding = 3.2,
   armSpread = 0.16,
@@ -81,7 +85,9 @@ export function particleField({
       const r = 1 - Math.abs(gaussian(rand)) * 0.035; // thin, slightly fuzzy
       [x, y, z] = [v[0] * r, v[1] * r, v[2] * r];
     } else if (distribution === 'disk') {
-      const r = Math.sqrt(rand());
+      // sqrt keeps the scatter uniform by area; lerping from innerRadius keeps
+      // it uniform by area across the annulus too
+      const r = Math.sqrt(innerRadius * innerRadius + rand() * (1 - innerRadius * innerRadius));
       let th = rand() * Math.PI * 2;
       if (spiralArms > 0) {
         const arm = Math.floor(rand() * spiralArms);

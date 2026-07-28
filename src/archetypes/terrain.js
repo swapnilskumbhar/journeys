@@ -240,6 +240,8 @@ export function terrain({
   const group = new THREE.Group();
   group.add(mesh);
 
+  const tmp = new THREE.Color();
+
   return {
     group,
     uniforms,
@@ -247,6 +249,12 @@ export function terrain({
       group.scale.setScalar(rebase.toWorld(radiusMeters));
 
       const s = surface({ u, local, t }) ?? {};
+      // Colour drives, not just scalars: a shore that comes out of the water
+      // has to change both its light tint and its haze, and neither can be a
+      // build-time constant when one terrain spans the crossing.
+      if (s.haze !== undefined) uniforms.uHaze.value.set(tmp.set(s.haze));
+      if (s.lightColor !== undefined) uniforms.uLightCol.value.set(tmp.set(s.lightColor));
+      if (s.dry !== undefined) uniforms.uDry.value.set(tmp.set(s.dry));
       if (s.sun !== undefined) uniforms.uSun.value = s.sun;
       if (s.cover !== undefined) uniforms.uCover.value = s.cover;
       if (s.fields !== undefined) uniforms.uFields.value = s.fields;

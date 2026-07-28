@@ -185,6 +185,11 @@ function tree(ctx, rand) {
 
 function dome(ctx, rand) {
   // Stromatolite: a stack of accreted mounds, wider than tall.
+  //
+  // The arc runs 0→PI, not PI→2PI. The atlas is drawn with the y axis already
+  // flipped so +y is up, which inverts the sense of the angle too — the
+  // original range drew the BOTTOM half of each ellipse, and every stromatolite
+  // in the journey rendered as a flat-topped slab.
   const w = S * (0.42 + rand() * 0.3);
   const h = w * (0.5 + rand() * 0.45);
   const layers = 3 + Math.floor(rand() * 3);
@@ -196,7 +201,7 @@ function dome(ctx, rand) {
       h * t * 0.55,
       w * 0.5 * (1 - t * 0.34),
       h * 0.55 * (1 - t * 0.18),
-      0, Math.PI, Math.PI * 2,
+      0, 0, Math.PI,
     );
     ctx.fill();
   }

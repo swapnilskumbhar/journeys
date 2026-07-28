@@ -281,6 +281,59 @@ export function makeLayers(uAt, tAt) {
       })),
 
     // --- the solar system --------------------------------------------------
+    // The cold molecular cloud the Sun condenses out of. A DARK layer: these
+    // clouds are visible in the sky as holes in the Milky Way, and additive
+    // blending cannot draw a hole — the first attempt was a grey glow that
+    // brightened the very starfield it was supposed to blot out.
+    L('molecular-cloud', ago(4.655e9), ago(4.545e9), () =>
+      particleField({
+        count: 5200,
+        distribution: 'cloud',
+        clumps: 34,
+        clumpSpread: 0.19,
+        seed: 109,
+        blending: 'normal',
+        colorA: 0x161a26,
+        colorB: 0x05070c,
+        size: 26,
+        maxSize: 70,
+        jitter: 0.01,
+        // Contracts as it collapses — the beat's first sentence, as a number.
+        radiusMeters: ({ local, rebase }) => rebase.frameMeters() * plin([[0, 1.5], [1, 0.55]], local),
+        opacity: ({ local }) => band(local, 0.05, 0.2, 0.72, 0.95) * 0.55,
+      })),
+    // A dark cloud needs something to be dark AGAINST, and between the galaxy
+    // leaving the band and the disc arriving there is nothing else in frame.
+    // Star-forming regions really do glow — this is the emission nebula the
+    // dark lanes sit in front of, and it is what keeps the dive from being a
+    // black screen.
+    L('cloud-glow', ago(4.655e9), ago(4.55e9), () =>
+      particleField({
+        count: 3400,
+        distribution: 'cloud',
+        clumps: 18,
+        clumpSpread: 0.26,
+        seed: 113,
+        colorA: 0xff9a6a,
+        colorB: 0x5a3ea8,
+        colorMode: 'random',
+        size: 16,
+        maxSize: 44,
+        twinkle: 0.15,
+        radiusMeters: ({ local, rebase }) => rebase.frameMeters() * plin([[0, 1.3], [1, 0.5]], local),
+        opacity: ({ local }) => band(local, 0.04, 0.18, 0.7, 0.94) * 0.32,
+      })),
+
+    // The knot at its centre brightening into a star.
+    L('protostar', ago(4.60e9), ago(4.54e9), () =>
+      glowSphere({
+        radiusMeters: ({ local, rebase }) => rebase.frameMeters() * plin([[0, 0.03], [1, 0.09]], local),
+        color: 0xfff0d2,
+        haloColor: 0xffb267,
+        haloScale: 8,
+        opacity: ({ local }) => band(local, 0.1, 0.4, 0.8, 0.97) * 0.9,
+      })),
+
     // The protoplanetary disc: ~70 AU of gas and dust around the young Sun.
     L('protoplanetary', ago(4.63e9), ago(4.50e9), () =>
       particleField({
@@ -329,10 +382,15 @@ export function makeLayers(uAt, tAt) {
         surface: ({ u }) => {
           const ya = yaAt(u);
           return {
-            // Molten after accretion and the Moon-forming impact, crusting over
-            // through the Hadean. Must be gone by the 4.4 Gyr "Oceans" beat —
-            // a magma ocean and liquid water cannot share a frame.
-            magma: plin([[4.55e9, 1], [4.47e9, 0.9], [4.42e9, 0.25], [4.38e9, 0]], ya),
+            // Molten after accretion, crusting over, then RE-MELTED by the
+            // giant impact — which is what actually happened, and gives the
+            // strike a visible consequence on Earth rather than only beside it.
+            // Must be gone by the 4.4 Gyr "Oceans" beat: a magma ocean and
+            // liquid water cannot share a frame.
+            magma: plin([
+              [4.55e9, 1], [4.520e9, 0.72], [4.5045e9, 0.72], [4.5030e9, 1],
+              [4.47e9, 0.92], [4.42e9, 0.25], [4.38e9, 0],
+            ], ya),
             // a global ocean first; continents emerge and grow through the
             // Archean and Proterozoic
             seaLevel: plin([[4.4e9, 0.72], [2.5e9, 0.58], [6e8, 0.52], [0, 0.5]], ya),
@@ -347,13 +405,359 @@ export function makeLayers(uAt, tAt) {
         },
       })),
 
-    // The Moon, from the impact onward — real radius at a real distance, which
-    // is why it is only on screen briefly. It formed roughly four Earth-radii
-    // out and has been receding ever since (measured today, by laser, at
-    // 3.8 cm/year); the frame is still 300,000 km wide at that moment, so the
-    // true Earth–Moon system fits. As the scale law closes in on Earth the Moon
-    // leaves the frame on its own, which is the honest thing for it to do
-    // rather than parking it at a flattering fake distance.
+    // --- the Moon-forming impact ---------------------------------------------
+    // An EVENT, staged in three phases across its own beat, not an aftermath.
+    // The beat says "a Mars-sized body strikes the young Earth… the debris
+    // thrown into orbit coalesces", and what used to be on screen was a molten
+    // globe with a small dark disc parked beside it — no impactor, no impact,
+    // no debris, nothing that happens.
+    //
+    // Everything below is keyed on years-before-present rather than on layer
+    // progress, so the sequence stays welded to the science even when a segment
+    // weight moves. The scale law holds 4.2e7 m dead still across all of it.
+    //
+    //   4.5175 → 4.5045 Gyr ago   Theia closes on a collision course
+    //   4.5045 → 4.5030            the strike: a flash, and the impactor is gone
+    //   4.5030 → 4.4700            a debris ring contracts and becomes the Moon
+    //
+    // Theia is named after the Titan who mothered the Moon, and is the standard
+    // name for the impactor in the giant-impact hypothesis. Radius ~0.53 Earth
+    // is the Mars-sized body the models want.
+    L('theia', ago(4.521e9), ago(4.500e9), () =>
+      planet({
+        radiusMeters: 3.4e6,
+        offsetMeters: ({ u }) => plin([
+          [4.5175e9, [3.75e7, 1.62e7, -1.5e7]],
+          [4.5045e9, [0.98e7, 0.44e7, -0.3e7]], // contact: Earth radius + its own
+        ], yaAt(u)),
+        // Same light direction as Earth. Two bodies with the same terminator
+        // angle read as one system; two with different ones read as a collage.
+        lightDir: [0.78, 0.16, 0.6],
+        rock: 0x4a3a2e,
+        atmosphere: 0xff7a3a,
+        spin: 0.08,
+        segments: 64,
+        surface: () => ({ magma: 1, seaLevel: -1, green: 0, ice: 0, night: 0, atmosphere: 0.5 }),
+        // Fully gone BEFORE the flash starts rising. Overlapping them left a
+        // hard dark disc in the middle of the fireball: planet writes depth
+        // even at 4% opacity, so a fading impactor still punches a hole in the
+        // additive flash sprite behind it.
+        opacity: ({ u }) => plin([
+          [4.5200e9, 0], [4.5165e9, 1], [4.5062e9, 1], [4.5050e9, 0],
+        ], yaAt(u)),
+      })),
+
+    // The strike. Brief and very bright — the whole point of a flash is that it
+    // is over before you have finished registering it.
+    L('impact-flash', ago(4.508e9), ago(4.494e9), () =>
+      glowSphere({
+        radiusMeters: 1.05e7,
+        offsetMeters: [0.72e7, 0.32e7, 0],
+        color: 0xffffff,
+        haloColor: 0xffd9a0,
+        haloScale: 5,
+        opacity: ({ u }) => plin([
+          [4.5050e9, 0], [4.5038e9, 1], [4.5024e9, 0.3], [4.4985e9, 0],
+        ], yaAt(u)),
+      })),
+
+    // The debris ring: contracting, cooling, and thinning out as its material
+    // ends up in one place. Real coalescence took perhaps a century — instant
+    // at this scale — so the pacing here is editorial, not physical.
+    L('impact-debris', ago(4.506e9), ago(4.455e9), () =>
+      particleField({
+        count: 9000,
+        distribution: 'disk',
+        // An annulus, not a filled disc. Filled, it read as a spray blowing
+        // across the frame rather than as material in ORBIT — and the orbit is
+        // the whole reason the debris ends up as one body.
+        innerRadius: 0.52,
+        thickness: 0.09,
+        seed: 137,
+        colorA: 0xffd2a0,
+        colorB: 0xc03a12,
+        size: 2.6,
+        maxSize: 8,
+        twinkle: 0.3,
+        spin: 0.22,
+        radiusMeters: ({ u }) => plog([
+          [4.5045e9, 4.4e7], [4.4900e9, 2.7e7], [4.4700e9, 2.35e7],
+        ], yaAt(u)),
+        opacity: ({ u }) => plin([
+          [4.5048e9, 0], [4.5030e9, 0.85], [4.4880e9, 0.5], [4.4650e9, 0],
+        ], yaAt(u)) * 0.8,
+      })),
+
+    // The Moon itself. Built from the planet archetype rather than a glowing
+    // sphere: an unlit basic material renders as a flat grey disc, and the Moon
+    // sharing Earth's light direction — same terminator, same angle — is most of
+    // what sells the two of them as one system.
+    //
+    // It formed roughly four Earth-radii out and has been receding ever since
+    // (measured today, by laser, at 3.8 cm/year). The frame is 42,000 km wide
+    // here, so the true early Earth–Moon system fits with the Moon ~125 px
+    // across; as the scale law closes in on Earth it leaves the frame on its
+    // own, which is the honest thing for it to do rather than parking it at a
+    // flattering fake distance.
+    L('moon', ago(4.503e9), ago(4.25e9), () =>
+      planet({
+        radiusMeters: 1.737e6,
+        // Starts at the debris ring's radius — the Moon condenses OUT of the
+        // ring, so it must first appear where the ring is, not somewhere else.
+        // plin, not plog: plog cannot interpolate a vector (it would try to
+        // raise an array to a power and silently produce string concatenation).
+        // 2.2e7 m is 3.45 Earth radii — the low end of the 3–5 the giant-impact
+        // models give, chosen because it is also what keeps the Moon inside the
+        // right edge of the frame. Both constraints are real; this satisfies
+        // them without inventing a distance.
+        offsetMeters: ({ u }) => plin([
+          [4.4950e9, [2.50e7, 0.28e7, 0]], [4.4700e9, [2.20e7, 0.16e7, 0]], [4.2e9, [4.20e7, 0, 0]],
+        ], yaAt(u)),
+        lightDir: [0.78, 0.16, 0.6],
+        rock: 0x6e6a63,
+        spin: 0.01,
+        segments: 48,
+        surface: ({ u }) => ({
+          // Still glowing when it forms; cooled within a few tens of Myr.
+          magma: plin([[4.4950e9, 0.85], [4.4650e9, 0]], yaAt(u)),
+          seaLevel: -1, green: 0, ice: 0, night: 0, atmosphere: 0,
+        }),
+        opacity: ({ u, local }) =>
+          plin([[4.5010e9, 0], [4.4930e9, 0.3], [4.4750e9, 1]], yaAt(u)) * band(local, 0, 0.02, 0.6, 0.95),
+      })),
+
+    // --- the Hadean sea ------------------------------------------------------
+    // "Oceans" opens on the globe and then falls to the water. The evidence the
+    // copy cites — 4.4 Gyr zircons carrying a water signature — is evidence
+    // about a SURFACE, so the beat should end on one.
+    // Both gated on the FRAME, not on u — the same trick the savanna ground
+    // uses. Keyed on years alone they left a black gap in the middle of the
+    // beat: Earth drops off the rebase band as soon as the frame passes ~5e5 m,
+    // and a sky keyed to arrive at 4.05 Gyr was still 150 Myr away.
+    L('hadean-sky', ago(4.28e9), ago(3.45e9), () =>
+      backdrop({
+        radiusFrames: 7,
+        top: 0x2a1410,
+        horizon: 0x8c3a18,
+        bottom: 0x140806,
+        sunColor: 0xffb066,
+        sunDir: [0.6, 0.22, -0.55],
+        sunSize: 0.995,
+        sunSoft: 0.02,
+        sunGain: 0.55,
+        bandLift: 0.7,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.02, 0.08, 0.86, 0.97) * clamp01((3.0e4 - rebase.frameMeters()) / 2.4e4),
+      })),
+    L('hadean-sea', ago(4.28e9), ago(3.45e9), () =>
+      water({
+        radiusMeters: 900,
+        levelMeters: 0,
+        waveMeters: 0.55,
+        wavelengthMeters: 14,
+        deep: 0x1a0c0a,
+        sky: 0x8a4020,
+        sunColor: 0xffc07a,
+        sunDir: [0.6, 0.22, -0.55],
+        sunGain: 1.0,
+        opacity: ({ local, rebase }) =>
+          band(local, 0.02, 0.08, 0.86, 0.97) * clamp01((2.0e3 - rebase.frameMeters()) / 1.4e3),
+      })),
+    // Rain and steam. Both are point fields with NORMAL blending — additive
+    // could only ever brighten the sky it is supposed to be hanging in front of.
+    L('hadean-rain', ago(4.02e9), ago(3.5e9), () =>
+      particleField({
+        count: 2600,
+        distribution: 'ball',
+        seed: 151,
+        blending: 'normal',
+        colorA: 0x9fb0bc,
+        colorB: 0x60707c,
+        colorMode: 'random',
+        size: 1.1,
+        maxSize: 3,
+        jitter: 0.04,
+        radiusMeters: 150,
+        offsetMeters: [0, 60, 0],
+        respectBand: false,
+        opacity: ({ local }) => band(local, 0.08, 0.24, 0.84, 0.96) * 0.5,
+      })),
+    L('hadean-steam', ago(4.02e9), ago(3.5e9), () =>
+      particleField({
+        count: 700,
+        distribution: 'cloud',
+        clumps: 22,
+        clumpSpread: 0.14,
+        seed: 157,
+        blending: 'normal',
+        colorA: 0x6e5044,
+        colorB: 0x2e201c,
+        size: 14,
+        maxSize: 40,
+        jitter: 0.02,
+        radiusMeters: 210,
+        offsetMeters: [0, 26, 0],
+        respectBand: false,
+        opacity: ({ local }) => band(local, 0.08, 0.26, 0.84, 0.96) * 0.3,
+      })),
+
+    // --- stromatolites -------------------------------------------------------
+    // The oldest thing in the fossil record that a reader can actually look at:
+    // layered microbial mats, still growing in Shark Bay today. Shallow water,
+    // backlit from a surface a couple of metres up.
+    L('archean-water', ago(3.72e9), ago(2.02e9), () =>
+      backdrop({
+        radiusFrames: 7,
+        top: 0x8a6a3e,
+        horizon: 0x4a4230,
+        bottom: 0x0c1014,
+        sunColor: 0xc8a870,
+        sunDir: [0.3, 0.92, -0.22],
+        sunSize: 0.86,
+        sunSoft: 0.5,
+        sunGain: 0.3,
+        bandLift: 0.4,
+        // The sky loses its Hadean orange as the atmosphere clears, over more
+        // than a billion years — this drive is the only place that shows it.
+        drive: ({ u }) => ({
+          top: yaAt(u) > 2.5e9 ? 0x8a6a3e : 0x3f5f78,
+          horizon: yaAt(u) > 2.5e9 ? 0x4a4230 : 0x28405a,
+        }),
+        opacity: ({ local }) => band(local, 0.02, 0.09, 0.9, 0.99),
+      })),
+    L('archean-floor', ago(3.72e9), ago(2.02e9), () =>
+      terrain({
+        radiusMeters: 26,
+        ampMeters: 0.9,
+        featureMeters: 6,
+        flattenMeters: 12,
+        seed: 41,
+        haze: 0x121a1e,
+        rock: 0x2f3338,
+        dry: 0x4a4436,
+        lightDir: [0.3, 0.7, -0.25],
+        lightColor: 0xc4b083,
+        surface: () => ({ sun: 0.95, cover: 0, fields: 0, urban: 0 }),
+        opacity: ({ local }) => band(local, 0.02, 0.09, 0.9, 0.99),
+      })),
+    L('archean-ceiling', ago(3.72e9), ago(2.02e9), () =>
+      water({
+        radiusMeters: 90,
+        levelMeters: 2.4,
+        waveMeters: 0.09,
+        wavelengthMeters: 1.6,
+        chop: 1.1,
+        below: 0x14181a,
+        windowColor: 0xd0b47e,
+        sunColor: 0xe8d2a4,
+        sunDir: [0.26, 0.94, -0.2],
+        sunGain: 0.45,
+        drive: ({ u }) => ({
+          windowColor: yaAt(u) > 2.5e9 ? 0xd0b47e : 0x9fc4dc,
+        }),
+        opacity: ({ local }) => band(local, 0.02, 0.09, 0.9, 0.99) * 0.9,
+      })),
+    L('stromatolites', ago(3.72e9), ago(2.02e9), () =>
+      silhouette({
+        kind: 'dome',
+        count: 54,
+        variants: 5,
+        seed: 47,
+        areaMeters: 6.5,
+        heightMeters: [0.35, 1.05],
+        aspect: 1.5, // wider than tall — that is what makes a mound a mound
+        centreClear: 1.2,
+        nearFadeMeters: 2.0,
+        color: 0x0a0b0c,
+        rim: 0x8a7448,
+        opacity: ({ local }) => band(local, 0.03, 0.12, 0.9, 0.99),
+      })),
+
+    // --- the oxygen catastrophe ----------------------------------------------
+    // Cyanobacteria venting oxygen. Bubble columns off the mats are the beat's
+    // subject at close range; the pull-out afterwards is where it becomes a
+    // planetary event.
+    L('oxygen-bubbles', ago(2.42e9), ago(2.05e9), () =>
+      blob({
+        count: 90,
+        radiusMeters: [0.02, 0.075],
+        areaMeters: 5,
+        seed: 53,
+        offsetMeters: ({ t }) => [0, 1.0 + ((t * 0.22) % 1.1), 0],
+        wobble: 0.16,
+        fill: 0x16323f,
+        rim: 0xbfe8ff,
+        rimPower: 2.1,
+        fillAlpha: 0.06,
+        opacity: ({ local }) => band(local, 0.05, 0.18, 0.78, 0.95) * 0.85,
+      })),
+
+    // --- cells within cells --------------------------------------------------
+    // Twenty microns across. The frame arrives here from a two-kilometre sea
+    // view eight decades earlier in the same continuous move, which is the one
+    // thing this engine can do that a cut-based explainer cannot.
+    L('cell-host', ago(1.5e9), ago(660e6), () =>
+      blob({
+        count: 1,
+        radiusMeters: 7.5e-6,
+        seed: 59,
+        wobble: 0.05,
+        fill: 0x123a44,
+        rim: 0x8fe6d8,
+        rimPower: 2.8,
+        fillAlpha: 0.09,
+        opacity: ({ local }) => band(local, 0.05, 0.16, 0.86, 0.97),
+      })),
+    // The captive: an alpha-proteobacterium being engulfed, and not digested.
+    // Its whole story is one number — the offset that carries it inside.
+    L('cell-captive', ago(1.5e9), ago(660e6), () =>
+      blob({
+        count: 1,
+        radiusMeters: 2.1e-6,
+        seed: 61,
+        wobble: 0.09,
+        offsetMeters: ({ u }) => plin([
+          [1.46e9, [1.55e-5, 0.5e-5, 0]],   // outside, approaching
+          [1.30e9, [0.42e-5, 0.12e-5, 0]],  // through the membrane
+          [1.05e9, [0.30e-5, -0.05e-5, 0]], // resident: the mitochondrion
+        ], yaAt(u)),
+        fill: 0x3a2418,
+        rim: 0xffb877,
+        rimPower: 2.2,
+        fillAlpha: 0.16,
+        opacity: ({ local }) => band(local, 0.06, 0.18, 0.86, 0.97),
+      })),
+    L('cell-organelles', ago(1.45e9), ago(660e6), () =>
+      blob({
+        count: 14,
+        radiusMeters: [0.35e-6, 0.9e-6],
+        areaMeters: 4.6e-6,
+        seed: 67,
+        wobble: 0.13,
+        fill: 0x1d4450,
+        rim: 0x74c8d8,
+        rimPower: 2.0,
+        fillAlpha: 0.12,
+        opacity: ({ local }) => band(local, 0.08, 0.22, 0.86, 0.97) * 0.75,
+      })),
+    // Cytoplasmic granules — the same job the marine snow does for water: they
+    // give an otherwise empty interior a sense of being a medium.
+    L('cell-motes', ago(1.45e9), ago(660e6), () =>
+      particleField({
+        count: 900,
+        distribution: 'ball',
+        seed: 71,
+        colorA: 0xa8e0e8,
+        colorB: 0x3c7c8c,
+        colorMode: 'random',
+        size: 1.4,
+        maxSize: 4,
+        jitter: 0.02,
+        twinkle: 0.4,
+        radiusMeters: 6.6e-6,
+        opacity: ({ local }) => band(local, 0.08, 0.22, 0.86, 0.97) * 0.4,
+      })),
+
     // --- the seafloor era ----------------------------------------------------
     // PROTOTYPE SLICE. Proving the backdrop+silhouette pair on the Ediacaran
     // and Cambrian beats before the same treatment goes to the rest of the
@@ -493,6 +897,296 @@ export function makeLayers(uAt, tAt) {
         opacity: ({ local }) => band(local, 0.05, 0.16, 0.9, 0.99) * 0.45,
       })),
 
+    // --- out of the water ----------------------------------------------------
+    // The hinge of the whole life era. It starts underwater and ends on land,
+    // because that is literally what the beat is about — and the camera goes
+    // through the surface rather than cutting across it, which is the entire
+    // reason the water archetype draws both sides.
+    //
+    // The crossing itself is done by the scale law: the camera sits at a fixed
+    // 0.34 world units, so as the frame widens 15 m → 150 m it climbs from
+    // 1.3 m below the waterline to 13 m above it, somewhere around 443 Mya.
+    L('devonian-sky', ago(490e6), ago(240e6), () =>
+      backdrop({
+        radiusFrames: 7,
+        top: 0x1d3f66,
+        horizon: 0x5f7c92,
+        bottom: 0x101a1e,
+        sunColor: 0xffe1ac,
+        sunDir: [0.62, 0.3, -0.5],
+        sunSize: 0.995,
+        sunSoft: 0.02,
+        sunGain: 0.45,
+        bandLift: 0.3,
+        // Below the surface this dome IS the water, so it starts as the
+        // Cambrian gradient and becomes a sky as the camera comes out.
+        drive: ({ u }) => {
+          const ya = yaAt(u);
+          const air = clamp01(plin([[462e6, 0], [430e6, 1]], ya));
+          return {
+            top: air > 0.5 ? 0x1d3f66 : 0x2d4c6a,
+            horizon: air > 0.5 ? 0x5f7c92 : 0x22445f,
+            bottom: air > 0.5 ? 0x101a1e : 0x040a12,
+            sunGain: 0.2 + air * 0.25,
+            bandLift: 0.28 + air * 0.06,
+          };
+        },
+        opacity: ({ local }) => band(local, 0.02, 0.10, 0.9, 0.99),
+      })),
+    L('shore-ground', ago(486e6), ago(245e6), () =>
+      terrain({
+        radiusMeters: 420,
+        ampMeters: 8,
+        featureMeters: 70,
+        flattenMeters: 150,
+        seed: 29,
+        rock: 0x4a4238,
+        lightDir: [0.5, 0.5, -0.35],
+        segments: 200,
+        surface: ({ u }) => {
+          const ya = yaAt(u);
+          const air = clamp01(plin([[462e6, 0], [430e6, 1]], ya));
+          return {
+            // Submerged, the ground is lit blue-green through water; in air it
+            // is lit by the sun. One terrain spans the crossing, so both the
+            // tint and the haze have to be driven rather than fixed at build.
+            lightColor: air > 0.5 ? 0xffd9a8 : 0x8ec4d8,
+            haze: air > 0.5 ? 0x8ea6b4 : 0x14324a,
+            dry: air > 0.5 ? 0x6b6046 : 0x54503f,
+            sun: 0.55 + air * 0.35,
+            // Bare rock until plants colonise it, then soil and cover — the
+            // beat's actual subject, on the ground it happens to.
+            cover: plin([[470e6, 0], [430e6, 0.25], [380e6, 0.8], [250e6, 0.7]], ya),
+            fields: 0,
+            urban: 0,
+          };
+        },
+        opacity: ({ local }) => band(local, 0.02, 0.09, 0.9, 0.99),
+      })),
+    // The sea itself, retreating below the lens. Level drops a little as well
+    // as the camera rising, so the crossing does not depend on one mechanism.
+    L('shore-water', ago(482e6), ago(330e6), () =>
+      water({
+        radiusMeters: 300,
+        levelMeters: ({ u }) => plin([[480e6, 5.2], [452e6, 3.6], [420e6, 2.4], [360e6, 1.2]], yaAt(u)),
+        waveMeters: 0.14,
+        wavelengthMeters: 4,
+        chop: 1.2,
+        segments: 200,
+        deep: 0x123244,
+        sky: 0x8fb0c8,
+        below: 0x0b1f2c,
+        windowColor: 0xa8cfe4,
+        sunColor: 0xffeccb,
+        sunDir: [0.5, 0.62, -0.45],
+        sunGain: 0.4,
+        opacity: ({ local }) => band(local, 0.03, 0.11, 0.82, 0.96),
+      })),
+    // Low plants first — the copy is explicit that plants go ashore before
+    // anything with a spine does.
+    L('shore-reeds', ago(462e6), ago(300e6), () =>
+      silhouette({
+        kind: 'reed',
+        count: 90,
+        variants: 6,
+        seed: 73,
+        areaMeters: 55,
+        heightMeters: [0.5, 2.2],
+        centreClear: 6,
+        nearFadeMeters: 9,
+        sway: 0.05,
+        color: 0x0b1410,
+        rim: 0x5c7a58,
+        opacity: ({ u, local }) =>
+          band(local, 0.05, 0.16, 0.88, 0.98) * plin([[460e6, 0], [430e6, 1], [330e6, 0.6]], yaAt(u)),
+      })),
+    // …then the first forests. Archaeopteris, the Devonian tree that built the
+    // first real soils — which is why the beat says oxygen climbs steeply.
+    L('devonian-forest', ago(436e6), ago(258e6), () =>
+      silhouette({
+        kind: 'tree',
+        count: 120,
+        variants: 6,
+        seed: 79,
+        areaMeters: 210,
+        heightMeters: [5, 24],
+        centreClear: 22,
+        nearFadeMeters: 30,
+        sway: 0.02,
+        color: 0x0a0f0c,
+        rim: 0x4e6a58,
+        opacity: ({ u, local }) =>
+          band(local, 0.05, 0.18, 0.86, 0.97) * plin([[434e6, 0], [385e6, 1], [262e6, 0.85]], yaAt(u)),
+      })),
+
+    // --- the Great Dying -----------------------------------------------------
+    // The Siberian Traps: several million cubic kilometres of basalt, erupted
+    // through a coalfield. The kill mechanism is in the copy — carbon, acid,
+    // anoxia — but what you can SEE is fissures to the horizon and an ash sky.
+    // Sky and ground run to 48 Myr, not to 180. Beat 29 spans 252 → 66 Myr, so
+    // its own midpoint is 138 Myr — Jurassic — and layers that stopped at 180
+    // left the middle of the beat as a black frame. The eruption fades; the
+    // world it left does not, and the sky clearing from ash to blue over eighty
+    // million years is the recovery the copy talks about.
+    L('traps-sky', ago(268e6), ago(48e6), () =>
+      backdrop({
+        radiusFrames: 7,
+        top: 0x140f0c,
+        horizon: 0x5a3320,
+        bottom: 0x0a0705,
+        sunColor: 0xc46a30,
+        sunDir: [0.6, 0.16, -0.5],
+        sunSize: 0.994,
+        sunSoft: 0.03,
+        sunGain: 0.3,
+        bandLift: 0.5,
+        drive: ({ u }) => {
+          const ya = yaAt(u);
+          // Snaps dark fast at the K–Pg: the impact darkens the sky in a human
+          // lifetime, not over three million years.
+          const clear = clamp01(plin([[240e6, 0], [170e6, 1], [66.6e6, 1], [66.0e6, 0.1]], ya));
+          return {
+            // Recovered, not cheerful. A bright horizon band over a lit plain
+            // read as an overexposed desert, which is the wrong note for the
+            // eighty million years after the largest extinction there has been.
+            top: clear > 0.5 ? 0x0e1b2e : 0x140f0c,
+            horizon: clear > 0.5 ? 0x3d5460 : 0x5a3320,
+            sunGain: 0.24 + clear * 0.16,
+            bandLift: 0.5 - clear * 0.24,
+          };
+        },
+        opacity: ({ local }) => band(local, 0.04, 0.14, 0.9, 0.98),
+      })),
+    L('traps-ground', ago(268e6), ago(48e6), () =>
+      terrain({
+        radiusMeters: 9e4,
+        ampMeters: 900,
+        featureMeters: 7e3,
+        flattenMeters: 1.2e4,
+        seed: 83,
+        haze: 0x22140e,
+        rock: 0x241d19,
+        dry: 0x2c2420,
+        lavaHot: 0xff5a10,
+        lightDir: [0.6, 0.3, -0.4],
+        lightColor: 0xd8a070,
+        segments: 220,
+        surface: ({ u }) => {
+          const ya = yaAt(u);
+          return {
+            lava: plin([[268e6, 0], [255e6, 1], [246e6, 0.9], [200e6, 0]], ya),
+            // Life comes back — ten million years, as the copy says — and then
+            // the K–Pg strips it again.
+            cover: plin([[252e6, 0], [240e6, 0.15], [180e6, 0.7], [66.6e6, 0.7], [65.8e6, 0.08]], ya),
+            sun: plin([[268e6, 0.28], [200e6, 0.42], [100e6, 0.5], [66.6e6, 0.5], [65.8e6, 0.12]], ya),
+            lightColor: 0xd8a070,
+            fields: 0,
+            urban: 0,
+          };
+        },
+        opacity: ({ local }) => band(local, 0.03, 0.12, 0.90, 0.98),
+      })),
+    L('traps-ash', ago(264e6), ago(190e6), () =>
+      particleField({
+        count: 1800,
+        distribution: 'cloud',
+        clumps: 26,
+        clumpSpread: 0.12,
+        seed: 89,
+        blending: 'normal',
+        colorA: 0x2e241e,
+        colorB: 0x120d0a,
+        size: 18,
+        maxSize: 46,
+        jitter: 0.02,
+        radiusMeters: 2.2e4,
+        offsetMeters: [0, 5.5e3, 0],
+        respectBand: false,
+        opacity: ({ local }) => band(local, 0.06, 0.2, 0.84, 0.96) * 0.45,
+      })),
+    // Dead snags. The same tree routine, sparse and unlit — a forest that has
+    // stopped being one.
+    L('traps-snags', ago(262e6), ago(200e6), () =>
+      silhouette({
+        kind: 'tree',
+        count: 55,
+        variants: 5,
+        seed: 97,
+        areaMeters: 4.5e3,
+        heightMeters: [90, 320],
+        centreClear: 500,
+        nearFadeMeters: 700,
+        color: 0x080605,
+        rim: 0x7a3a18,
+        opacity: ({ local }) => band(local, 0.06, 0.2, 0.8, 0.95) * 0.9,
+      })),
+
+    // --- ten kilometres of rock ----------------------------------------------
+    // Chicxulub. Staged like the Moon-forming impact: an approach, a strike, an
+    // aftermath — the pattern that beat established.
+    L('kpg-bolide', ago(67e6), ago(65.8e6), () =>
+      glowSphere({
+        radiusMeters: 6e3,
+        offsetMeters: ({ u }) => plin([
+          [66.9e6, [3.4e4, 2.6e4, -1.2e4]],
+          [66.2e6, [0.4e4, 0.15e4, 0]],
+        ], yaAt(u)),
+        color: 0xfff2d0,
+        haloColor: 0xffa64a,
+        haloScale: 6,
+        opacity: ({ u }) => plin([
+          [67.0e6, 0], [66.85e6, 1], [66.25e6, 1], [66.15e6, 0],
+        ], yaAt(u)),
+      })),
+    L('kpg-flash', ago(66.4e6), ago(64e6), () =>
+      glowSphere({
+        radiusMeters: 9e4,
+        color: 0xffffff,
+        haloColor: 0xffd9a0,
+        haloScale: 5,
+        opacity: ({ u }) => plin([
+          [66.25e6, 0], [66.1e6, 1], [65.8e6, 0.25], [65e6, 0],
+        ], yaAt(u)),
+      })),
+    // The shockwave, as an expanding ring on the ground.
+    L('kpg-shock', ago(66.3e6), ago(62e6), () =>
+      particleField({
+        count: 7000,
+        distribution: 'disk',
+        innerRadius: 0.82,
+        thickness: 0.03,
+        seed: 101,
+        colorA: 0xffd2a0,
+        colorB: 0xa03810,
+        size: 3.0,
+        maxSize: 9,
+        radiusMeters: ({ u }) => plog([[66.15e6, 6e3], [65.4e6, 5.5e4], [64e6, 1.4e5]], yaAt(u)),
+        opacity: ({ u }) => plin([
+          [66.2e6, 0], [66.05e6, 0.9], [65.2e6, 0.35], [63.5e6, 0],
+        ], yaAt(u)),
+      })),
+    // Then years of dust. Normal blending, because this layer's whole job is to
+    // take light OUT of the sky.
+    L('kpg-dust', ago(66.2e6), ago(40e6), () =>
+      particleField({
+        count: 2600,
+        distribution: 'cloud',
+        clumps: 30,
+        clumpSpread: 0.16,
+        seed: 103,
+        blending: 'normal',
+        colorA: 0x241c17,
+        colorB: 0x0c0908,
+        size: 22,
+        maxSize: 60,
+        jitter: 0.015,
+        radiusMeters: 8e5,
+        offsetMeters: [0, 1.6e5, 0],
+        respectBand: false,
+        opacity: ({ u, local }) =>
+          band(local, 0.03, 0.12) * plin([[66.2e6, 0], [65.8e6, 0.85], [58e6, 0.5], [42e6, 0]], yaAt(u)),
+      })),
+
     // --- the surface ---------------------------------------------------------
     // From the hominin beats to the industrial age the frame is 300 m – 25 km
     // and the world is a heightfield, not a globe. Earth (fixed at its real
@@ -502,7 +1196,10 @@ export function makeLayers(uAt, tAt) {
     // One terrain serves the whole surface era; its ground cover, field
     // patchwork, urban centre and sun level are all driven by years-before-
     // present, the same pattern the planet uses for geological time.
-    L('ground', ago(30e6), ago(1.2), () =>
+    // Starts at 55 Myr rather than 30, to take the hand-off from the Mesozoic
+    // ground before it has finished fading — otherwise the second half of the
+    // K–Pg beat has no ground at all.
+    L('ground', ago(55e6), ago(1.2), () =>
       terrain({
         radiusMeters: 3e4,
         ampMeters: 26,
@@ -723,20 +1420,5 @@ export function makeLayers(uAt, tAt) {
         opacity: ({ local }) => band(local, 0.1, 0.35, 0.8, 0.97) * 0.22,
       })),
 
-    // Built from the planet archetype rather than a glowing sphere: an unlit
-    // basic material renders as a flat grey disc, and the Moon sharing Earth's
-    // light direction — same terminator, same angle — is most of what sells the
-    // two of them as one system.
-    L('moon', ago(4.515e9), ago(4.25e9), () =>
-      planet({
-        radiusMeters: 1.737e6,
-        offsetMeters: ({ u }) => plog([[4.52e9, 2.4e7], [4.2e9, 4.2e7]], yaAt(u)),
-        lightDir: [0.78, 0.16, 0.6],
-        rock: 0x6e6a63,
-        spin: 0.01,
-        segments: 48,
-        surface: () => ({ magma: 0, seaLevel: -1, green: 0, ice: 0, night: 0, atmosphere: 0 }),
-        opacity: ({ local }) => band(local, 0.03, 0.14, 0.6, 0.95),
-      })),
   ];
 }

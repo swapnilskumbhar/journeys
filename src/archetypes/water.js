@@ -84,7 +84,10 @@ const fragment = /* glsl */ `
   void main() {
     #include <logdepthbuf_fragment>
 
-    vec3 n = normalize(vN);
+    // Flatten the wave normal with distance. At grazing angles the normal
+    // varies far faster than the pixel rate and the far half of the plane
+    // shimmers with moiré; distant water genuinely does read as a flat sheen.
+    vec3 n = normalize(mix(vN, vec3(0.0, 1.0, 0.0), smoothstep(0.10, 0.5, vDist)));
     vec3 v = normalize(vView);        // camera → surface
     vec3 col;
 
