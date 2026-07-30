@@ -44,6 +44,13 @@ export function particleField({
   // how camps, islands and towns are shaped and what a uniform disk can never
   // say. Above 1 it stretches, which is what turns a clump into a plume.
   flattenY = 1,
+  // Fixed tilt of the whole field, [x, y, z] in radians. Anything `flattenY`
+  // has pressed flat lands parallel to the ground plane, and a band lying
+  // exactly along the frame edge reads as a rendering artefact rather than as
+  // a thing in the world — a galaxy, a debris plane or a ring seen at an angle
+  // all need to cross the frame diagonally. Applied once at build, so it costs
+  // nothing per frame and stays a pure function of the layer's own parameters.
+  rotation = null,
   // per-frame
   opacity = () => 1,
   scaleBias = 1,
@@ -142,6 +149,7 @@ export function particleField({
 
   const group = new THREE.Group();
   group.add(points);
+  if (rotation) group.rotation.set(rotation[0] ?? 0, rotation[1] ?? 0, rotation[2] ?? 0);
 
   return {
     group,
@@ -160,7 +168,9 @@ export function particleField({
         const [ox, oy, oz] = Array.isArray(raw) ? raw : [raw, 0, 0];
         group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
       }
-      if (spin) group.rotation.y = t * spin;
+      // Additive on top of any authored tilt, so `rotation` and `spin` compose
+      // rather than the second silently discarding the first.
+      if (spin) group.rotation.y = (rotation?.[1] ?? 0) + t * spin;
       mat.uniforms.uTime.value = t;
       const w = respectBand ? rebase.weight(meters) : 1;
       const o = opacity({ u, local, rebase }) * w;

@@ -133,7 +133,58 @@ function cuneiform(ctx, rand, { dark = '#5c3a1e', light = '#e6c99a', rule = '#a5
   }
 }
 
-const KINDS = { cuneiform };
+function bootprint(ctx, rand, { dark = '#232322', light = '#f0eee6', dust = '#9c988c' } = {}) {
+  // A pressed print in loose powder. Read from the RIDGES, not the outline:
+  // what makes a bootprint legible is the row of transverse bars with bright
+  // upstanding edges and dark troughs between them, and that pattern survives
+  // being small in a way an outline never does.
+  //
+  // Not Moon-specific — the same routine is a print in mud, sand or snow; only
+  // the palette changes. (`panel` lays flat rather than upright when the caller
+  // passes tiltRad ≈ PI/2, which is what a print on the ground needs.)
+  const w = S * (0.30 + rand() * 0.05);
+  const h = S * (0.78 + rand() * 0.08);
+  const y0 = S * 0.08;
+  const cx = (rand() - 0.5) * S * 0.05;
+
+  // the depression: a soft dark sole shape, slightly waisted at the arch
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.5, y0 + h * 0.12);
+  ctx.quadraticCurveTo(cx - w * 0.56, y0 + h * 0.72, cx - w * 0.34, y0 + h * 0.97);
+  ctx.quadraticCurveTo(cx, y0 + h * 1.06, cx + w * 0.34, y0 + h * 0.97);
+  ctx.quadraticCurveTo(cx + w * 0.56, y0 + h * 0.72, cx + w * 0.5, y0 + h * 0.12);
+  ctx.quadraticCurveTo(cx + w * 0.42, y0 - h * 0.02, cx, y0);
+  ctx.quadraticCurveTo(cx - w * 0.42, y0 - h * 0.02, cx - w * 0.5, y0 + h * 0.12);
+  ctx.closePath();
+  ctx.fill();
+
+  // ridges: dark bar, bright lip on the sun side. Nine of them, which is what
+  // the Apollo overshoe actually carried and also about the most that stays
+  // separable at a hundred pixels.
+  const bars = 9;
+  for (let i = 0; i < bars; i++) {
+    const t = (i + 0.5) / bars;
+    const yy = y0 + h * (0.06 + t * 0.88);
+    const bw = w * (0.86 - Math.abs(t - 0.55) * 0.28);
+    const bh = (h * 0.88) / bars;
+    ctx.fillStyle = light;
+    ctx.fillRect(cx - bw * 0.5, yy - bh * 0.16, bw, bh * 0.34);
+    ctx.fillStyle = dark;
+    ctx.fillRect(cx - bw * 0.5, yy + bh * 0.2, bw, bh * 0.3);
+  }
+
+  // thrown powder around the rim — a print has a raised collar, and without it
+  // the shape reads as a decal lying on top of the ground
+  ctx.fillStyle = dust;
+  for (let i = 0; i < 90; i++) {
+    const a = rand() * Math.PI * 2;
+    const r = 0.5 + rand() * 0.22;
+    ctx.fillRect(cx + Math.cos(a) * w * r, y0 + h * 0.5 + Math.sin(a) * h * r * 0.62, S * 0.008, S * 0.008);
+  }
+}
+
+const KINDS = { cuneiform, bootprint };
 
 function buildAtlas(kind, variants, seed, opts, body) {
   const draw = KINDS[kind];
@@ -147,7 +198,12 @@ function buildAtlas(kind, variants, seed, opts, body) {
     ctx.save();
     ctx.translate(S * (v + 0.5), S);
     ctx.scale(1, -1);
-    slab(ctx, S * (0.74 + rand() * 0.1), S * 0.9, rand, body);
+    // `body: null` skips the slab entirely — a mark that is IN a surface (a
+    // print in dust, a scratch on rock) has no carrier of its own. The rand is
+    // still consumed so variants stay identical either way.
+    const sw = S * (0.74 + rand() * 0.1);
+    if (body) slab(ctx, sw, S * 0.9, rand, body);
+    else rand();
     // the slab draw above consumes one rand; the kind re-derives its own size
     // from the next few, so variants differ in outline as well as in content
     draw(ctx, rand, opts || {});

@@ -1,6 +1,17 @@
 // Temporary: verify the REAL user path (document scroll → u), not the __u
 // override every other check uses.
+//
+//   node scripts/scroll-check.mjs [id] [port]
+//
+// The id and port are arguments rather than constants because there is more
+// than one journey now, and the defect this catches (an unreachable final beat,
+// off-by-one ribbon navigation, a wheel eaten by the canvas overlay) is a
+// per-journey defect — it depends on the journey's length and beat count.
 import { chromium } from 'playwright';
+
+const args = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+const ID = args[0] ?? 'big-bang';
+const PORT = Number(args[1] ?? 5175);
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -8,7 +19,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
-await page.goto('http://localhost:5175/big-bang', { waitUntil: 'networkidle' });
+await page.goto(`http://localhost:${PORT}/${ID}`, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => window.__journey?.journey?.beats?.length > 0, null, { timeout: 20000 });
 await page.waitForTimeout(1500);
 
@@ -65,14 +76,15 @@ console.log(`\nwheel over canvas: scrollY ${before} → ${after}  ${after > befo
 // Ribbon tick navigation.
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(500);
-await page.locator('.ribbon-tick').nth(30).click();
+const tickIndex = Math.min(30, (await page.locator('.ribbon-tick').count()) - 2);
+await page.locator('.ribbon-tick').nth(tickIndex).click();
 await page.waitForTimeout(1600);
 const seeked = await page.evaluate(() => ({
   y: window.scrollY,
   readout: document.querySelector('.ribbon-value')?.textContent,
   heading: document.querySelector('.beat-panel h2')?.textContent,
 }));
-console.log(`tick 31 click → scrollY=${seeked.y}  ${seeked.readout}  "${seeked.heading}"`);
+console.log(`tick ${tickIndex + 1} click → scrollY=${seeked.y}  ${seeked.readout}  "${seeked.heading}"`);
 
 // --- the camera is a pure function of u ------------------------------------
 // The regression this exists for: the bearing used to be `t * 0.035`, so the
@@ -115,15 +127,33 @@ console.log(
 // pointer and then carrying on after it stops.
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(600);
-const box = await page.locator('.ribbon-track').boundingBox();
-const xAt = (f) => box.x + box.width * f;
-const yMid = box.y + box.height / 2;
+// The track's own bounding box is measured FRESH before every drag step, not
+// once up front. `.ribbon-readout` is `min-width: 12rem` but otherwise sized
+// to its content (`white-space: nowrap`, no max-width), and `.ribbon-track`
+// is `flex: 1` beside it — so a journey whose readout STRING LENGTH varies a
+// lot across the axis (crust-to-core's `formatDepth` grows from "6.96 km
+// down" to "2,895 km down · 45.4% to centre") visibly narrows the track as
+// the reader scrubs into longer-format territory. A single box captured
+// before the whole sequence goes stale the moment that happens, and every
+// `xAt(f)` computed from it targets the wrong live pixel — which is exactly
+// what produced a reproducible ~3% "drag lag" on crust-to-core and nothing on
+// journeys whose readout format stays a roughly constant width. That is a
+// real (if cosmetic) UX wrinkle in whichever journey has the growing label —
+// worth fixing there — but it is not a drag-handling defect: `ribbon.js`'s
+// own `uAtPointer` already re-reads `getBoundingClientRect()` on every single
+// pointermove, so a real user's pointer never actually decouples from the
+// track under their finger. This harness needs the same discipline.
+const trackBox = () => page.locator('.ribbon-track').boundingBox();
+const yMidOf = (box) => box.y + box.height / 2;
 
-await page.mouse.move(xAt(0.2), yMid);
+let box0 = await trackBox();
+await page.mouse.move(box0.x + box0.width * 0.2, yMidOf(box0));
 await page.mouse.down();
 const dragged = [];
 for (const f of [0.2, 0.45, 0.7, 0.62]) {
-  await page.mouse.move(xAt(f), yMid, { steps: 4 });
+  const box = await trackBox();
+  const xAt = (frac) => box.x + box.width * frac;
+  await page.mouse.move(xAt(f), yMidOf(box), { steps: 4 });
   await page.waitForTimeout(120); // ~7 frames: an eased seek would still be moving
   dragged.push({ f, ...(await page.evaluate(() => ({
     u: window.scrollY / (document.documentElement.scrollHeight - window.innerHeight),
@@ -150,6 +180,71 @@ for (const d of dragged) {
 const overshoot = Math.abs(settled.u - 0.62);
 if (overshoot > 0.01) errors.push(`released at 0.62 but drifted to ${settled.u.toFixed(4)}`);
 console.log(`release → u=${settled.u.toFixed(4)} (drift ${overshoot.toFixed(4)})  "${settled.heading}"`);
+
+// --- look-around ------------------------------------------------------------
+// Left-drag on the canvas turns the view. Three things have to hold at once,
+// and they pull against each other: the direction must actually change, the
+// PAGE must not move (the drag is a look, not a scrub — and the canvas is a
+// fixed full-viewport element sitting under the wheel, rule 5), and the frame
+// must come back to the authored direction on release so the next beat is
+// composed as it was written.
+const lookBefore = await page.evaluate(() => {
+  const c = window.__journey.stage.camera;
+  return { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w, scrollY: window.scrollY };
+});
+
+const cx = Math.round(page.viewportSize().width / 2);
+const cy = Math.round(page.viewportSize().height * 0.35); // clear of panel and ribbon
+await page.mouse.move(cx, cy);
+await page.mouse.down();
+await page.mouse.move(cx + 260, cy - 90, { steps: 8 });
+await page.waitForTimeout(120);
+
+const lookDuring = await page.evaluate(() => {
+  const c = window.__journey.stage.camera;
+  return {
+    q: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w },
+    look: { ...window.__journey.look },
+    scrollY: window.scrollY,
+  };
+});
+await page.mouse.up();
+await page.waitForTimeout(900); // the return ease
+
+const lookAfter = await page.evaluate(() => {
+  const c = window.__journey.stage.camera;
+  return { q: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }, look: { ...window.__journey.look } };
+});
+
+const qd = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.z - b.z) + Math.abs(a.w - b.w);
+const turned = qd(lookBefore, lookDuring.q);
+const returned = qd(lookBefore, lookAfter.q);
+
+if (turned < 1e-3) errors.push(`left-drag did not turn the view (quaternion delta ${turned.toExponential(1)})`);
+if (lookDuring.scrollY !== lookBefore.scrollY) {
+  errors.push(`left-drag scrolled the page (${lookBefore.scrollY} → ${lookDuring.scrollY}) — it must look, not scrub`);
+}
+if (returned > 1e-3) errors.push(`view did not return to the authored direction after release (delta ${returned.toExponential(1)})`);
+console.log(
+  `\nlook drag → yaw ${lookDuring.look.yaw.toFixed(1)}° pitch ${lookDuring.look.pitch.toFixed(1)}°  ` +
+  `turn ${turned.toFixed(4)}  ·  after release ${returned.toExponential(1)}  ·  page ${lookBefore.scrollY === lookDuring.scrollY ? 'still' : 'MOVED'}`,
+);
+
+// And it must stay out of deterministic mode entirely: with __u set, a drag is
+// ignored, or every review shot and exported frame becomes gesture-dependent.
+await page.evaluate(() => { window.__u = 0.5; });
+await page.waitForTimeout(200);
+await page.mouse.move(cx, cy);
+await page.mouse.down();
+await page.mouse.move(cx + 300, cy - 120, { steps: 6 });
+await page.waitForTimeout(150);
+const det = await page.evaluate(() => ({ ...window.__journey.look }));
+await page.mouse.up();
+await page.evaluate(() => { delete window.__u; });
+if (det.yaw !== 0 || det.pitch !== 0) {
+  errors.push(`drag moved the camera while __u was set (yaw ${det.yaw}, pitch ${det.pitch}) — review shots would not be reproducible`);
+}
+console.log(`deterministic mode: drag ignored (yaw ${det.yaw}, pitch ${det.pitch})`);
 
 await browser.close();
 if (errors.length) {

@@ -30,11 +30,56 @@ export function createStage(container, options = {}) {
     fog = null, // { color, density } — exponential, opt-in per journey
     background = 0x02030a,
     fov = 55,
+    // A real light rig, opt-in per journey. OFF by default, because most of
+    // what this stage draws is emissive — plasma, starfields, city lights — and
+    // those need no lamp at all.
+    //
+    // But a journey with HARD SURFACES in it (a launch vehicle, a tower, a
+    // lander) was being drawn with analytic lambert terms inside custom
+    // shaders and no shadows anywhere, which is most of what "it looks
+    // cartoonish" actually means. `castShadow` flags had been set on ten meshes
+    // in kit/geometry.js since the port from howitworks and did nothing,
+    // because no light and no shadow map ever existed here to honour them.
+    //
+    //   sun: { dir: [x, y, z], intensity, ambient, shadow: true|false, radius }
+    //
+    // `radius` is the half-extent of the shadow camera in WORLD UNITS, not
+    // metres — the rebaser keeps everything inside a fixed unit band, so one
+    // orthographic shadow camera sized to that band works at every scale from
+    // a launch pad to a planet without ever being re-fitted.
+    sun = null,
   } = options;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(background);
   if (fog) scene.fog = new THREE.FogExp2(fog.color ?? background, fog.density ?? 0.0008);
+
+  let sunLight = null;
+  if (sun) {
+    const dir = sun.dir ?? [1, 0.6, 0.5];
+    sunLight = new THREE.DirectionalLight(sun.color ?? 0xfff4e6, sun.intensity ?? 3.2);
+    // Position is a DIRECTION scaled out: the light targets the origin, which is
+    // where every journey puts its subject.
+    sunLight.position.set(dir[0], dir[1], dir[2]).normalize().multiplyScalar(40);
+    scene.add(sunLight, sunLight.target);
+    if (sun.shadow !== false) {
+      const r = sun.radius ?? 3.2;
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.set(2048, 2048);
+      const c = sunLight.shadow.camera;
+      c.left = -r; c.right = r; c.top = r; c.bottom = -r;
+      c.near = 1; c.far = 90;
+      // Without a bias, a self-shadowing cylinder acnes into stripes — which
+      // reads as banding on the rocket rather than as shadow.
+      sunLight.shadow.bias = -0.0008;
+      sunLight.shadow.normalBias = 0.02;
+      c.updateProjectionMatrix();
+    }
+    // A dim sky/ground fill so the unlit side is not pure black. In space the
+    // fill is genuinely almost nothing, which is why it is this low — but zero
+    // makes a curved hull read as a flat silhouette.
+    scene.add(new THREE.HemisphereLight(sun.sky ?? 0x4a5a72, sun.ground ?? 0x14161c, sun.ambient ?? 0.5));
+  }
 
   // The near/far pair spans the renderable world-unit band from rebase.js with
   // a margin at each end. Everything outside it is culled before it is built,
@@ -51,6 +96,10 @@ export function createStage(container, options = {}) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  if (sun && sun.shadow !== false) {
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
   container.appendChild(renderer.domElement);
 
   // CSS2D layer for distance/era callouts. pointer-events:none is load-bearing
