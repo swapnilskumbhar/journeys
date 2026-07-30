@@ -10,8 +10,9 @@ That one explains **mechanisms** — N independent looping scenes, one camera
 fly-to each. This one explains **journeys**. Do not merge them; the loop-per-
 step model is correct there and wrong here.
 
-First journeys: Big Bang → today · Earth → the observable universe ·
-launch pad → Mars.
+Five journeys ship: Big Bang → today · Earth → the Moon · launch pad → Mars ·
+the Voyager Grand Tour → interstellar space · a blade of grass → the centre
+of the Earth.
 
 ## Commands (Windows — call node by absolute path; shell cwd drifts)
 
@@ -23,14 +24,18 @@ launch pad → Mars.
   `& "C:\Program Files\nodejs\node.exe" scripts/smoke.mjs`. Covers axis
   round-tripping, segment seams, monotonicity, the rebaser band, and **beat
   pacing — in viewport-heights**: it prints every beat's scroll in vh and fails
-  if a scene beat (19–30) drops under 1.5 or a human-era beat (31+) under 1.2.
-  Gating on a fraction of the AXIS is
-  what let the original pacing bug through — "A star is born" was 0.4 vh, about
-  360 px for the whole formation of the solar system, and looked ordinary by
-  every axis-relative measure. The human era then repeated it: "The wheel" was
-  0.13 vh. Extend it whenever axis or rebase behaviour
-  changes; these are the modules most likely to be wrong in ways that only show
-  up 12 decades into a journey.
+  if it drops under that journey's OWN `floorVh(index1)`, exported from each
+  journey's own `pacing.js` (big-bang tiers its floor by era — 1.5 vh for
+  scene beats 19–30, 1.2 vh for the human era 31+ — the other four use a flat
+  1.5 vh because every one of their beats stages a concrete scene). Gating on
+  a fraction of the AXIS is what let the original pacing bug through — "A star
+  is born" was 0.4 vh, about 360 px for the whole formation of the solar
+  system, and looked ordinary by every axis-relative measure. The human era
+  then repeated it: "The wheel" was 0.13 vh. Runs every registered journey by
+  default; pass one or more ids (`node scripts/smoke.mjs voyager`) to check
+  only those. Extend it whenever axis or rebase behaviour changes; these are
+  the modules most likely to be wrong in ways that only show up 12 decades
+  into a journey.
 - Screenshots — the only reliable way to SEE a journey (the Browser pane is
   compositor-throttled and its screenshots time out):
   `node scripts/shots.mjs <id> [outDir] [port] [--at=0.1,0.5] [--sheet]`.
@@ -43,13 +48,15 @@ launch pad → Mars.
   preview`** — preview falls back to index.html for any unknown path, which is
   precisely what Pages does not do, so a broken deep link passes there and 404s
   in production.
-- Real scroll path — `node scripts/scroll-check.mjs`. Everything in shots.mjs
-  drives `window.__u` directly, which bypasses scroll entirely; this is the only
-  check that exercises document scroll → u, the wheel not being eaten by the
-  canvas overlay, ribbon tick navigation, **ribbon drag-scrubbing** (tracks the
-  pointer, no drift after release) and **camera purity** (hold u, run three
-  virtual minutes past, assert the camera has not moved). Run it after touching
-  player.js, ribbon.js, or anything about layout.
+- Real scroll path — `node scripts/scroll-check.mjs [id] [port]`. Defaults to
+  the first registered journey; pass an id to check a specific one (e.g.
+  `crust-to-core`). Everything in shots.mjs drives `window.__u` directly,
+  which bypasses scroll entirely; this is the only check that exercises
+  document scroll → u, the wheel not being eaten by the canvas overlay, ribbon
+  tick navigation, **ribbon drag-scrubbing** (tracks the pointer, no drift
+  after release) and **camera purity** (hold u, run three virtual minutes
+  past, assert the camera has not moved). Run it after touching player.js,
+  ribbon.js, or anything about layout.
 
 ## Map
 
@@ -63,10 +70,11 @@ launch pad → Mars.
 | src/engine/journey.js | `defineJourney` + registry glob (eager meta.js, lazy index.js) |
 | src/engine/player.js | scroll → u → camera + layers + one swapped copy panel |
 | src/engine/ribbon.js | left→right progress HUD, doubles as navigation |
-| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette, panel, water, blob |
+| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette, panel, water, blob, vehicle, trajectory, rocks, strata, **tower, cloudDeck** |
+| src/kit/camrig.js | `aimCamera(cam, {pos, azimuthDeg, lookAt, pan, rollDeg})` — shared camera-aiming helper; `rollDeg` decides where the travel axis lands on screen |
 | src/kit/ | procedural toolkit ported from howitworks (shared by copy) |
 | src/journeys/\<id\>/ | meta.js · axis-def.js · beats.js · layers.js · curve.js · index.js |
-| scripts/ | smoke.mjs · shots.mjs · scroll-check.mjs · video export (**export-video/narration still need retargeting to `__u`**) |
+| scripts/ | smoke.mjs · shots.mjs · scroll-check.mjs · **frame-check.mjs** · video export (**export-video/narration still need retargeting to `__u`**) |
 
 ## Rules
 
@@ -108,23 +116,222 @@ launch pad → Mars.
    A drag also lands whole: damping in the player smooths wheel jitter only, and
    any jump over 1.2 vh is applied in one frame, so the frame never swims to
    catch up with the pointer or keep travelling after it stops.
+   **Reader INPUT is not a clock.** Left-dragging the canvas turns the view, and
+   that does not breach this rule: `u` is already input, and the look offset is
+   a second input axis beside it, so the camera stays a pure function of
+   `(u, look)` — same inputs, same frame, forever. What the rule bans is state
+   that changes on its own. Three properties keep the authored work safe: the
+   turn is CLAMPED (±40° yaw, ±22° pitch — parallax, not a new bearing, because
+   every composition here is authored in world space against a camera on +z);
+   it RETURNS to the authored direction on release, so the next beat is framed
+   as written; and it is DISABLED whenever `window.__u` is set, so every review
+   and export path is byte-identical. `window.__look = {yaw, pitch}` authors a
+   turn deliberately in deterministic mode.
 9. **Verify with evidence, not vibes.** The build must pass, and screenshots
    must have been LOOKED AT before calling anything done. Framing, occlusion and
    copy-vs-visual truth are judged by eyes.
 
-## Status (2026-07-28)
+## Status (2026-07-29)
 
-**`big-bang` ships** — 39 beats, Planck epoch to today, 82 vh, its own lazy
-chunk. The frame goes where each beat's subject is and only returns to orbit for
-"Today": cosmic web → galaxy → molecular cloud → protoplanetary disc → the
-Moon-forming impact → a Hadean sea → stromatolite shallows → **one cell at 20
-microns** → the Ediacaran seafloor → out of the water onto a Devonian shore →
-Siberian flood basalt → **the Chicxulub fireball** → a moonlit migration → a
-grain field with people in it → **an ox cart with spoked wheels** → **a
-lamplit clay tablet at a 1.5 m frame** → a mill town under coal smoke → the
-night-lit planet. Eleven archetypes (particleField, glowSphere, filaments,
-planet, terrain, blocks, backdrop, silhouette, **panel**, water, blob) cover
-all of it with no bespoke Three.js in the journey folder.
+**Five journeys ship**, each its own lazy chunk:
+
+- **`big-bang`** — 39 beats, Planck epoch to today, 82 vh. The frame goes
+  where each beat's subject is and only returns to orbit for "Today": cosmic
+  web → galaxy → molecular cloud → protoplanetary disc → the Moon-forming
+  impact → a Hadean sea → stromatolite shallows → **one cell at 20 microns** →
+  the Ediacaran seafloor → out of the water onto a Devonian shore → Siberian
+  flood basalt → **the Chicxulub fireball** → a moonlit migration → a grain
+  field with people in it → **an ox cart with spoked wheels** → **a lamplit
+  clay tablet at a 1.5 m frame** → a mill town under coal smoke → the
+  night-lit planet.
+- **`earth-to-moon`** — pad to lunar surface, the Earth–Moon pair framed with
+  the origin at the spacecraft throughout.
+- **`earth-to-mars`** — 28 beats, 64 vh, a Hohmann-class transfer with a
+  shrinking, dimming Sun as its own first-class subject through the empty
+  cruise, ending on rust-coloured ground with foreground boulders (`rocks`).
+- **`voyager`** — 32 beats, 82 vh, the real 1977 Grand Tour: four giant-planet
+  encounters bought with gravity assists, the Pale Blue Dot, the heliopause,
+  and an honest closing statement about the distance to Proxima Centauri.
+- **`crust-to-core`** — 27 beats, 68 vh, a straight-down descent from a blade
+  of grass to the centre of the Earth: topsoil → the deepest mine and the
+  deepest borehole humans have made → the Mohorovičić discontinuity →
+  peridotite and diamond-depth kimberlite → the transition zone → the
+  core–mantle boundary, the sharpest change in the planet → molten iron and
+  the planet's own magnetic dynamo → a solid inner core at the Sun's surface
+  temperature, held solid by pressure alone.
+
+Fifteen archetypes (particleField, glowSphere, filaments, planet, terrain,
+blocks, backdrop, silhouette, panel, water, blob, **vehicle, trajectory,
+rocks, strata**) cover all of it with no bespoke Three.js in any journey
+folder.
+
+Rendering and composition lessons, the current pass (`earth-to-moon` rework):
+
+- **Travel must be perpendicular to the camera.** This journey put Earth at -y
+  and the Moon at +y, so the flight path ran straight UP the frame: the
+  trajectory was a vertical stripe, the ship never crossed anything, the two
+  worlds sat 180° apart and no frame could hold both, and the departed planet
+  landed underneath the copy panel. Rule 5 asks for the opposite — vertical
+  scroll in, horizontal journey out. The fix is `rollDeg` in `camrig.js` plus a
+  `ROLL` table: 0° through the ascent (down is NOT arbitrary there — the ground
+  really is at -y and a rolled horizon looks broken), 90° across the coast, back
+  to 0° for the lunar descent. No object moves; only the camera turns, and the
+  roll becomes the story at the point it happens — the world tipping over is
+  where a crew stops having a floor. Measured: occupancy 0.393 → 0.461,
+  adjacent 8.1 → 10.1, from one number.
+- **The frame-check gate.** `scripts/frame-check.mjs` masks out the copy panel,
+  ribbon and header and measures only the picture left: `occupancy`, `contrast`,
+  `adjacent`. It exists because a batch of four journeys built clean, passed
+  smoke and scroll-check, was signed off as "screenshots looked at", and shipped
+  with 20 of 32 `voyager` beats being the same white sticker on black. If the
+  picture is only legible because of the caption on it, the picture failed.
+  `--look=32` additionally scores the view off-axis, which readers can now reach
+  by dragging. See the `journey-craft` skill for the composition rules behind it.
+- **A scale law can cancel the only thing a stretch has to show.** The coast's
+  documented law is `frame = 0.571 × min(...)` — frame the nearer body at seven
+  units — but the TABLE anchored one value per beat and held it while the
+  distance grew, so `k` drifted 7 → 2 inside a single beat and the frame widened
+  at exactly the rate that cancelled Earth shrinking. Earth was the same ~20°
+  disc at 25,000 km and at 260,000 km. Sampling the real formula densely gives
+  the actual arc: 69° → 21° → 6.7° → 2.1°. Same defect class as the anchor-drift
+  lesson below, one step worse: the table did not merely drift, it inverted the
+  narrative.
+- **One geometry can be right for the limb and wrong for the cruise.** `SUN` was
+  tuned so the terminator crossed the visible disc from ORBIT, where the camera
+  is beside the planet. On the way out the ship is ABOVE Earth and the camera
+  looks down the +y face, which a sun carrying 0.12 in y barely lights — so
+  every coast beat rendered the NIGHT hemisphere, a dark ball with city lights,
+  while the copy said "the whole Earth". Earth now has its own `EARTH_SUN` with
+  a real +y term; the Moon and the ascent keep theirs.
+- **PBR without a light renders black.** `vehicle` moved from a custom lambert
+  shader to `MeshStandardMaterial` so hard surfaces get roughness, metalness and
+  real shadows — the `castShadow` flags in `kit/geometry.js` had been inert
+  since the port because no light and no shadow map ever existed on this stage.
+  The rig is `stageOptions.sun` and it is OPT-IN, which immediately cost
+  `voyager` 0.026 → 0.019 occupancy for one build: it uses `vehicle` and had no
+  sun. Any journey using a PBR archetype must declare a sun.
+- **Boxes make a town; they cannot make a structure.** The launch complex was
+  `blocks` and read as one brown slab beside the rocket. A tower is mostly
+  HOLES — legs, bay ties, alternating cross-bracing, a crane head, swing arms
+  reaching to the vehicle. That is an archetype gap, not a tuning problem:
+  `tower` (`src/archetypes/tower.js`) now serves derricks, masts, cranes and
+  scaffolding too. Apply the name-the-object test: cover the caption, and if a
+  stranger would say "some vertical bars", no lighting or scale will save it.
+- **A layer can be mounted, visible, at 0.86 opacity, and still invisible.**
+  `cloudDeck` replaced 3,000 point sprites (a sprite is a round hard-edged disc,
+  so a field of them reads as cotton balls whatever the count). The deck sits at
+  a real 2 km, and with the camera aimed at the horizon the whole layer
+  compressed into a band at the skyline. Aiming down helped and did not fix it.
+  The actual cause was transparent RENDER ORDER: the deck and the terrain under
+  it are both transparent, and Three sorts transparent objects by distance to
+  the camera, which for two near-coplanar sheets seen almost edge-on is a coin
+  toss the ground kept winning. An explicit `renderOrder` fixed it in one line.
+  **Sorting is not a way to say "this is on top"; saying so is** — and when a
+  layer probes as mounted, visible and at full opacity, stop tuning its
+  parameters and go looking at draw order.
+
+Spaceflight-and-descent batch lessons (`earth-to-mars`, `voyager`,
+`crust-to-core`), the most recent pass:
+
+- **A subject off the camera's own boresight is INVISIBLE, not merely
+  off-centre.** This cost two journeys in the same batch. `earth-to-mars` lost
+  the Sun during "a dimmer sun" and, separately, its whole Mars-as-a-point
+  sequence, because the layer's authored offset direction and the camera's
+  authored `LOOK_X`/aim were two independently-chosen numbers meant to
+  coincide — measured, they drifted 70°+ apart. `earth-to-moon`'s Earthrise
+  beat had the same defect for a different reason: Earth sits diametrically
+  opposite the Moon on the shared Y axis, and there is no `LOOK_Y` scalar that
+  aims at a nearby body ahead and a distant one behind in the same shot. Fix:
+  a layer that must appear ON the camera's aim point should be placed at a
+  world position DERIVED FROM the same formula the camera uses to aim,
+  never at an independently-authored offset — one number, not two that are
+  supposed to agree.
+- **Anchor tables keyed to a beat's own start-mark drift by the beat's
+  MIDPOINT — where it is actually reviewed.** `voyager`'s first pass gave the
+  scale law and vertical look an anchor TABLE per beat, interpolated between
+  marks. That works exactly AT the anchors and nowhere else: by 45% into a
+  beat (`shots.mjs`'s sampling point), a moving subject's true offset has
+  already drifted from the value the table was built for, so several beats
+  pointed the camera at empty space. The fix is a literal per-frame FORMULA
+  of `u`, not a table: `frame = max(4 × radius, 1.3 × |offset|)`, with
+  "nearest body" chosen by the axis position itself rather than authored per
+  beat. `earth-to-mars`'s two-body law (`frame = 0.571 × min(...)`) is the
+  same idea one body simpler.
+- **The encounter/departure segment split is the general fix for "the copy
+  promises a world and the frame delivers a dot."** Same pattern as this
+  file's own K–Pg lesson, generalised: any beat built around a close approach
+  needs its own TIGHT axis segment sized to a few times the subject's own
+  radius (not an arbitrary "small" fraction of the full journey — `voyager`'s
+  first attempt at this used ~0.05 AU windows around Saturn/Uranus/Neptune,
+  which is still ~100–300 planet-radii and renders as a point), plus a
+  separately-weighted departure segment whose weight is the whole control
+  over where the beat's own midpoint lands. The beat's own MARK also has to
+  sit ON the body's true position — Saturn's two beats were marked 0.4–0.6 AU
+  short of Saturn's real 9.58 AU orbital radius, so even a perfectly tight
+  segment was tight around the wrong point.
+- **The origin-is-the-spacecraft convention generalises to N bodies.** Every
+  body's offset from the ship is `trueDistance(body) − shipDistance`, positive
+  ahead, negative behind, recomputed every frame from the axis value — proven
+  for two bodies in `earth-to-moon`/`earth-to-mars`, and `voyager` runs it for
+  six (Earth, the Sun, and four giant planets) with the camera aimed at
+  whichever is currently nearest in heliocentric range.
+- **A field entirely inside opaque solid material is exactly as prone to
+  "twenty identical rectangles" as a field of real emptiness is to "twenty
+  black rectangles."** `crust-to-core` is inside rock or metal for its whole
+  length, no sky, no horizon. The fix needed a genuinely new archetype:
+  `strata` (`src/archetypes/strata.js`) is a material shell enclosing the
+  camera — the inverse of `backdrop`, which is a shell meant to be seen
+  THROUGH — driven by ONE continuous function of real depth for colour,
+  band structure, vein density and grain, plus a second continuous `glow`
+  term (0 = lit only by an authored lamp, 1 = fully self-luminous) that
+  crosses steeply exactly at the core–mantle boundary rather than fading
+  across the whole mantle. A first pass lit this shell with a literal
+  fixed-world-space lamp direction, which meant whichever hemisphere the
+  camera happened to be facing (it rotates via `AZIMUTH`) was frequently the
+  UNLIT one — the wall read as a black rectangle for most of the crust and
+  mantle despite `opacity` being 1 the whole time. An authored "lamp" that is
+  meant to read as illumination from wherever the camera looks needs a strong
+  ambient floor, not a strictly directional term.
+- **Near-white saturated fill under this stage's bloom (threshold ~0.42) is
+  a blown-out blank rectangle in a different colour, not a solved "glowing"
+  beat.** `crust-to-core`'s inner core was first authored at literal
+  `0xfff8e8`-class near-white, and every one of its last three beats
+  converged on one indistinguishable pale wash. Capping the glow palette
+  short of pure white and keeping `grain` non-trivially non-zero even while
+  fully self-luminous is what keeps "rock that glows" readable as MATERIAL
+  through to the final beat, rather than as a light source with no texture
+  left in it.
+- **A ribbon readout whose STRING LENGTH swings widely across the axis
+  visibly narrows the scrub track, and `scroll-check.mjs`'s drag test can
+  make that look like an engine bug.** `crust-to-core`'s `formatDepth`
+  concatenated a kilometre figure AND a percentage past 1e5 m
+  (`"2,895 km down · 45.4% to centre"`), swinging ~19–34 characters wide.
+  `.ribbon-readout` is `min-width` but not `max-width`, and sits beside
+  `.ribbon-track` (`flex: 1`) — so the track visibly narrows as the reader
+  scrubs into long-format territory. This is cosmetic for a real user
+  (`ribbon.js`'s drag handler re-reads `getBoundingClientRect()` on every
+  `pointermove`, so a pointer never actually decouples from the track), but
+  `scroll-check.mjs`'s own drag test captured the track's bounding box ONCE
+  before a sequence of drags, so a stale box produced a reproducible ~3%
+  "lag" that looked exactly like the pointer failing to keep up — worth
+  ruling out the READOUT FORMATTER and the TEST'S OWN caching before
+  suspecting `player.js`'s damping/jump-threshold logic (rule 8), which was
+  not the cause here. Fixed in both places: the test now re-measures the
+  track before every drag step, and the formatter now switches units
+  (percentage alone, past 1e5 m) rather than concatenating two.
+- **A general boulder/rubble archetype was a real gap, not a tuning
+  problem.** `earth-to-mars`'s final surface beat needed foreground rock and
+  reused `panel`'s `bootprint` kind (tilted upright) for it, which rendered as
+  two vertical grid-textured slabs — the wrong archetype for the subject,
+  since `panel` draws a flat MARKED surface, not a solid lump. `rocks`
+  (`src/archetypes/rocks.js`) is the general fix: one low-poly icosahedron,
+  instanced, each vertex displaced by a hash of (vertex position, per-instance
+  seed) so every instance is a differently irregular lump from one shared
+  geometry, with flat per-face shading recovered from screen-space
+  derivatives of the displaced view-space position rather than any
+  per-instance CPU-side normal recomputation. It now serves Martian
+  foreground boulders, Kola-borehole rubble, and `crust-to-core`'s mineral
+  inclusions alike.
 
 Camera-determinism lesson, the most recent pass:
 

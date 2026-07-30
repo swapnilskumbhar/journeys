@@ -38,6 +38,14 @@ export function glowSphere({
   // Number = distance along +x; array = a full offset; function = either,
   // evaluated per frame so real orbital recession can be animated.
   offsetMeters = null,
+  // Colour, halo colour and solid colour accept a plain hex number (the
+  // original contract, unchanged) OR a function of `{u, local, rebase, t}`
+  // returning one, evaluated every frame. Added for `crust-to-core`'s
+  // inner-core beats, which need to track the SAME continuous bronze→gold
+  // arc the `strata` material uses rather than holding one flat tint across
+  // several beats — general the same way every other per-frame-or-constant
+  // option in this archetype library already is (`radiusMeters`,
+  // `offsetMeters`), not a bespoke addition for one journey.
   color = 0xffffff,
   haloColor = null,
   haloScale = 4,
@@ -49,11 +57,13 @@ export function glowSphere({
   respectBand = true, // see particle-field.js — same reason
 } = {}) {
   const group = new THREE.Group();
+  const resolve = (v, ctx) => (typeof v === 'function' ? v(ctx) : v);
 
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: getHaloTexture(),
-      color: new THREE.Color(haloColor ?? color),
+      color: new THREE.Color(typeof haloColor === 'function' || typeof color === 'function'
+        ? 0xffffff : (haloColor ?? color)),
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -66,7 +76,8 @@ export function glowSphere({
     mesh = new THREE.Mesh(
       new THREE.SphereGeometry(1, segments, segments / 2),
       new THREE.MeshBasicMaterial({
-        color: new THREE.Color(solidColor ?? color),
+        color: new THREE.Color(typeof solidColor === 'function' || typeof color === 'function'
+          ? 0xffffff : (solidColor ?? color)),
         transparent: true,
       }),
     );
@@ -78,6 +89,7 @@ export function glowSphere({
     sprite,
     mesh,
     update({ u, local, rebase, t }) {
+      const ctx = { u, local, rebase, t };
       const meters = typeof radiusMeters === 'function'
         ? radiusMeters({ u, local, rebase })
         : radiusMeters;
@@ -94,11 +106,17 @@ export function glowSphere({
         group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
       }
 
+      if (typeof color === 'function' || typeof haloColor === 'function') {
+        sprite.material.color.set(resolve(haloColor ?? color, ctx));
+      }
       sprite.scale.setScalar(r * haloScale);
       sprite.material.opacity = Math.max(0, o * ho);
       sprite.visible = sprite.material.opacity > 0.002;
 
       if (mesh) {
+        if (typeof color === 'function' || typeof solidColor === 'function') {
+          mesh.material.color.set(resolve(solidColor ?? color, ctx));
+        }
         mesh.scale.setScalar(r);
         mesh.material.opacity = Math.max(0, o);
         mesh.visible = mesh.material.opacity > 0.002;

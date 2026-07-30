@@ -207,6 +207,12 @@ export function terrain({
   flattenMeters = 600,
   lightDir = [0.7, 0.3, 0.5],
   lightColor = 0xffd9a8,
+  // Displacement from the journey origin, in METRES — the same contract
+  // particleField, silhouette, blocks, blob and glowSphere already carry. Its
+  // absence here was an inconsistency, not a decision: a journey whose origin
+  // is the SPACECRAFT (earth-to-moon) needs the ground `altitude` metres below
+  // the origin, and there was no sanctioned way to say so.
+  offsetMeters = null,
   surface = () => ({}),
   opacity = () => 1,
   segments = 240,
@@ -258,6 +264,14 @@ export function terrain({
     uniforms,
     update({ u, local, rebase, t }) {
       group.scale.setScalar(rebase.toWorld(radiusMeters));
+
+      if (offsetMeters !== null) {
+        const raw = typeof offsetMeters === 'function'
+          ? offsetMeters({ u, local, rebase, t })
+          : offsetMeters;
+        const [ox, oy, oz] = Array.isArray(raw) ? raw : [raw, 0, 0];
+        group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
+      }
 
       const s = surface({ u, local, t }) ?? {};
       // Colour drives, not just scalars: a shore that comes out of the water

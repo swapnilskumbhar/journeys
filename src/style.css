@@ -28,6 +28,10 @@ body {
   z-index: 0;
 }
 .canvas-holder canvas { display: block; }
+/* Left-drag turns the view. `grab` is the affordance; without it the gesture is
+   undiscoverable, since nothing else on the page is draggable except the ribbon. */
+.canvas-holder { cursor: grab; }
+.canvas-holder.is-looking { cursor: grabbing; }
 
 .scroll-spacer { position: relative; z-index: -1; pointer-events: none; }
 

@@ -51,3 +51,7 @@ renders-smoke/
 logo/
 mixer/
 *.7z
+
+# Agent worktrees live inside the repo and must never be committed —
+# they are checkouts of this same repo and would nest it inside itself.
+.claude/worktrees/
