@@ -17,6 +17,7 @@ export { panel } from './panel.js';
 export { water } from './water.js';
 export { blob } from './blob.js';
 export { vehicle } from './vehicle.js';
+export { instrumentedProbe } from './instrumented-probe.js';
 export { trajectory } from './trajectory.js';
 export { rocks } from './rocks.js';
 export { cloudDeck } from './cloud-deck.js';

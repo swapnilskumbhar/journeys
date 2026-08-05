@@ -36,6 +36,9 @@ const fragment = /* glsl */ `
   uniform float uGreen;    // land vegetation
   uniform float uIce;      // polar caps
   uniform float uNight;    // city lights on the dark side
+  uniform float uBands;    // latitudinal cloud banding — a gas giant, not a rock
+  uniform float uBandFreq;
+  uniform vec3  uBandColor;
   uniform float uOpacity;
 
   varying vec3 vNormalObj;
@@ -93,6 +96,22 @@ const fragment = /* glsl */ `
     // as a snowball at every epoch.
     float ice = smoothstep(0.90 - uIce * 0.09, 0.98 - uIce * 0.09, lat + detail * 0.04);
     albedo = mix(albedo, vec3(0.82, 0.87, 0.93), ice * uIce);
+
+    // LATITUDINAL BANDING. A gas giant has no surface to put continents on;
+    // what it has is zonal wind, and the belts and zones that wind organises
+    // the cloud tops into are the ONE thing that makes a tan sphere read as
+    // Jupiter rather than as a ball. fbm alone cannot produce them — it is
+    // isotropic by construction — so the latitude is warped by noise and then
+    // sliced, which gives belts that wander and pinch the way real ones do
+    // instead of a barcode. Off by default (uBands = 0), so every rocky world
+    // already in this project renders exactly as before.
+    float latWarp = n.y + (fbm(n * 3.4) - 0.5) * 0.14;
+    float belt = smoothstep(-0.22, 0.22, sin(latWarp * uBandFreq));
+    // A second, much finer set inside the first: real cloud tops have ripples
+    // along the belt edges, and without them the boundaries read as painted on.
+    float fine = 0.5 + 0.5 * sin(latWarp * uBandFreq * 3.7 + detail * 5.0);
+    vec3 banded = uBandColor * mix(0.74, 1.22, detail * 0.6 + fine * 0.4);
+    albedo = mix(albedo, banded, uBands * belt);
 
     // Molten phase: glowing fissures in a dark crust. The band must be NARROW —
     // fbm mostly lives near 0.5, so a wide threshold makes "crack" true almost
@@ -164,6 +183,13 @@ export function planet({
   atmosphereScale = 1.022,
   segments = 96,
   spin = 0.05,
+  // Gas-giant banding. `bands` is the strength (0 = a rocky world, unchanged),
+  // `bandColor` the belt tint and `bandFreq` roughly twice the number of belts
+  // pole to pole. Driveable per frame through `surface()` like every other
+  // uniform here.
+  bands = 0,
+  bandColor = 0x8a6a48,
+  bandFreq = 22,
   surface = () => ({}),
   opacity = () => 1,
 } = {}) {
@@ -175,6 +201,9 @@ export function planet({
     uGreen: { value: 0 },
     uIce: { value: 0 },
     uNight: { value: 0 },
+    uBands: { value: bands },
+    uBandFreq: { value: bandFreq },
+    uBandColor: { value: new THREE.Color(bandColor) },
     uOpacity: { value: 1 },
   };
 
@@ -234,6 +263,7 @@ export function planet({
       if (s.green !== undefined) uniforms.uGreen.value = s.green;
       if (s.ice !== undefined) uniforms.uIce.value = s.ice;
       if (s.night !== undefined) uniforms.uNight.value = s.night;
+      if (s.bands !== undefined) uniforms.uBands.value = s.bands;
 
       const o = opacity({ u, local, rebase }) * (respectBand ? rebase.weight(meters) : 1);
       uniforms.uOpacity.value = o;

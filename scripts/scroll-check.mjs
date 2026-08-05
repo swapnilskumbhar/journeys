@@ -188,6 +188,29 @@ console.log(`release → u=${settled.u.toFixed(4)} (drift ${overshoot.toFixed(4)
 // fixed full-viewport element sitting under the wheel, rule 5), and the frame
 // must come back to the authored direction on release so the next beat is
 // composed as it was written.
+// SETTLE THE SCROLL FIRST. This test compares the camera quaternion before the
+// drag with the one after release, and that difference is only the LOOK if `u`
+// is the same at both moments. It is not: the preceding ribbon-tick click
+// starts a smooth scroll of tens of thousands of pixels, and `html` carries
+// `scroll-behavior: smooth`, so the page is still travelling a second later.
+// Measured on `voyager`, whose tick 21 is 50,000 px down the page: 700 ms after
+// the click scrollY was 41,765 and still moving, and the camera quaternion
+// drifted 4.3e-1 over the next second purely from the axis advancing — while
+// the look itself returned to exactly 0.0 once the page had stopped.
+//
+// So this reported "view did not return to the authored direction" for a
+// journey whose view returns perfectly, and passed or failed depending on how
+// the timing fell. Same defect class as the stale bounding box this file's own
+// drag test used to cache (see CLAUDE.md): rule out the test's timing before
+// suspecting player.js. Waiting for two consecutive identical scroll positions
+// makes the check measure the thing it names.
+await page.waitForFunction(() => {
+  const y = window.scrollY;
+  if (window.__settleY === y) return true;
+  window.__settleY = y;
+  return false;
+}, null, { timeout: 8000, polling: 250 });
+
 const lookBefore = await page.evaluate(() => {
   const c = window.__journey.stage.camera;
   return { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w, scrollY: window.scrollY };
@@ -209,7 +232,24 @@ const lookDuring = await page.evaluate(() => {
   };
 });
 await page.mouse.up();
-await page.waitForTimeout(900); // the return ease
+
+// WAIT FOR THE EASE TO FINISH, rather than assuming a fixed 900 ms covers it.
+// The return is `dv/dt = -(returnRate·v + returnFloor)`, which from the ±40°
+// yaw clamp this drag always hits needs about 580 ms of RENDERED time — so a
+// 900 ms wall-clock wait leaves only ~300 ms of slack for render latency, and
+// the heaviest journey in the repo spends it. `voyager` reported 5.4e-2
+// "did not return" with a view that reaches exactly 0.0 a few frames later,
+// and passed or failed on how the timing fell.
+//
+// Polling for the actual condition is both stricter and honest: a view that
+// genuinely never returns still fails, because the loop times out and the
+// quaternion comparison below runs on a view that is still turned.
+await page.waitForFunction(
+  () => window.__journey.look.yaw === 0 && window.__journey.look.pitch === 0,
+  null,
+  { timeout: 3000, polling: 50 },
+).catch(() => {});
+await page.waitForTimeout(80); // one more frame, so the camera has been rebuilt
 
 const lookAfter = await page.evaluate(() => {
   const c = window.__journey.stage.camera;

@@ -155,5 +155,73 @@ for (const id of ids) {
   console.log(`  total ${length}vh · ${beats.length} beats · mean ${(length / beats.length).toFixed(2)}vh`);
 }
 
+// --- films -----------------------------------------------------------------
+// Any journey carrying a film.js gets its timeline solved here, with synthetic
+// narration timings. Browser-free and instant, which is the whole point: the
+// alternative is finding out that u(t) walks backwards twenty minutes into a
+// six-thousand-frame render.
+for (const id of ids) {
+  const filmPath = join(root, id, 'film.js');
+  if (!existsSync(filmPath)) continue;
+
+  console.log(`\n=== ${id} · film ===`);
+  const film = (await import(pathToFileURL(filmPath).href)).default;
+  const { solve, makeCurve, beatMarks } = await import(pathToFileURL(resolve('scripts/film/solve-timeline.mjs')).href);
+  const marks = await beatMarks(id);
+
+  // Synthetic timings at a plausible speaking rate. The exact numbers do not
+  // matter — what is being checked is the SHAPE the solver produces from any
+  // valid alignment.
+  const timings = {};
+  let t = 0;
+  film.shots.forEach((s, i) => {
+    if (!s.narration) return;
+    const secs = Math.max(1.5, s.narration.trim().split(/\s+/).length / 2.6);
+    timings[i] = { start: +t.toFixed(3), end: +(t + secs).toFixed(3) };
+    t += secs + 0.45;
+  });
+
+  let timeline = null;
+  try {
+    timeline = solve({ id, marks, film, timings, fps: 24 });
+    ok(true, '  timeline solves');
+  } catch (err) {
+    ok(false, '  timeline solves', err.message);
+  }
+
+  if (timeline) {
+    const curve = makeCurve(timeline);
+    let back = 0, prev = -Infinity;
+    for (let s = 0; s <= timeline.duration; s += 0.05) {
+      const u = curve(s);
+      if (u < prev - 1e-9) back = Math.max(back, prev - u);
+      prev = u;
+    }
+    ok(back <= 1e-9, '  u(t) never goes backwards', back ? `worst ${back.toFixed(6)}` : '');
+    ok(curve(0) <= 0.01, '  opens at the start of the journey', `u=${curve(0).toFixed(4)}`);
+    ok(curve(timeline.duration) >= 0.995, '  closes at the end', `u=${curve(timeline.duration).toFixed(4)}`);
+
+    const short = timeline.shots.filter((s) => s.end - s.start <= s.travel + 0.2);
+    ok(short.length === 0, '  every shot has hold left after its transit',
+      short.length ? `${short.length} too short, first is shot ${short[0].i}` : '');
+
+    // Acts must tile the film: the score is generated per act, and a gap
+    // between two of them is a silence the mixer will not fill.
+    if (timeline.acts.length) {
+      let tiled = Math.abs(timeline.acts[0].start - timeline.shots[0].start) < 0.5;
+      for (let k = 1; k < timeline.acts.length; k++) {
+        if (Math.abs(timeline.acts[k].start - timeline.acts[k - 1].end) > 0.5) tiled = false;
+      }
+      ok(tiled, '  acts tile the film with no gaps', `${timeline.acts.length} acts`);
+    }
+
+    const mins = Math.floor(timeline.duration / 60);
+    console.log(
+      `  ${timeline.shots.length} shots · ${mins}m${String(Math.round(timeline.duration % 60)).padStart(2, '0')}s · ` +
+      `${timeline.frames} frames · ${timeline.acts.length} acts · ${timeline.segments.length} audio segment(s)`,
+    );
+  }
+}
+
 console.log(`\n${failures === 0 ? 'SMOKE PASS' : `SMOKE FAIL (${failures})`}`);
 process.exit(failures === 0 ? 0 : 1);
