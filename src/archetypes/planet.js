@@ -190,6 +190,18 @@ export function planet({
   bands = 0,
   bandColor = 0x8a6a48,
   bandFreq = 22,
+  // WHICH WAY THE POLE POINTS, in radians about world x and z. Zero — the
+  // default, and every existing call site — leaves the spin axis on world +y.
+  //
+  // This is not a nicety. Everything this shader varies with latitude (the ice
+  // caps, the fertile band, the belts on a gas giant) is measured off the
+  // sphere's own +y, so a journey whose travel axis is also +y looks straight
+  // down the pole at every body it passes: `earth-to-mars` leaves Earth
+  // radially along +y, and beats 6 through 9 rendered a white cap filling the
+  // middle of the disc with the continents smeared around the rim, which is
+  // exactly what a pole-on view of this shader IS. No amount of surface tuning
+  // reaches it, because the defect is the viewing latitude and not the surface.
+  tilt = [0, 0],
   surface = () => ({}),
   opacity = () => 1,
 } = {}) {
@@ -235,8 +247,13 @@ export function planet({
     }),
   );
 
+  // The spin has to happen INSIDE the tilt, or the two fight: `rotation.y` is
+  // assigned every frame and would wipe anything written to the same Euler.
+  const spinner = new THREE.Group();
+  spinner.add(mesh, atmo);
   const group = new THREE.Group();
-  group.add(mesh, atmo);
+  group.add(spinner);
+  group.rotation.set(tilt[0] ?? 0, 0, tilt[1] ?? 0);
 
   return {
     group,
@@ -247,7 +264,7 @@ export function planet({
         ? radiusMeters({ u, local, rebase })
         : radiusMeters;
       group.scale.setScalar(rebase.toWorld(meters));
-      group.rotation.y = t * spin;
+      spinner.rotation.y = t * spin;
 
       if (offsetMeters !== null) {
         const raw = typeof offsetMeters === 'function'

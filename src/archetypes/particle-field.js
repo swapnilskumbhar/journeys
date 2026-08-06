@@ -171,7 +171,16 @@ export function particleField({
       // Additive on top of any authored tilt, so `rotation` and `spin` compose
       // rather than the second silently discarding the first.
       if (spin) group.rotation.y = (rotation?.[1] ?? 0) + t * spin;
-      mat.uniforms.uTime.value = t;
+      // A CLOCK A FIELD DOES NOT USE MUST NOT BE FED TO IT. `uTime` was set
+      // unconditionally, so every field carried a live wall-clock uniform whether
+      // or not anything read it — harmless while `uTwinkle` and `uJitter` are
+      // zero, and a standing invitation to reach for `twinkle` on a subject that
+      // physically does not move. A reader scrolling `earth-to-mars` reported the
+      // interplanetary sky as "dust randomly moving all across space": the stars
+      // twinkled (there is no air out there to make them), the galactic band
+      // jittered ±15% of its own radius, and the zodiacal disc spun. Rule 8 does
+      // give layers the clock; it does not make every use of it honest.
+      mat.uniforms.uTime.value = (twinkle !== 0 || jitter !== 0) ? t : 0;
       const w = respectBand ? rebase.weight(meters) : 1;
       const o = opacity({ u, local, rebase }) * w;
       mat.uniforms.uOpacity.value = o;

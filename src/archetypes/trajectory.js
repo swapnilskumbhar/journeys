@@ -76,6 +76,18 @@ export function trajectory({
   aheadOpacity = 0.22,
   opacity = () => 1,
   offsetMeters = null,
+  // THE FRAME THE PATH IS DRAWN IN, as [x, y, z] radians, or a function of u.
+  //
+  // The geometry is built ONCE from `path(s)` and can only be moved afterwards,
+  // which is correct — a path that is re-shaped per frame is not a path. But a
+  // journey whose origin travels ALONG the path needs the whole heliocentric
+  // frame to turn under it: `earth-to-mars` puts the spacecraft at the world
+  // origin with +y always the direction of travel, and the direction of travel
+  // swings through 180° over a Hohmann transfer. Rotating the frame is exactly
+  // as rigid as translating it, and it is what lets the transfer ellipse, both
+  // orbital rings and the Sun be ONE co-planar system rather than three
+  // separately-authored decorations.
+  rotationRad = null,
   respectBand = false,    // a path is SUPPOSED to span many frame-widths
 } = {}) {
   if (!path && !points) throw new Error('trajectory needs `path` or `points`');
@@ -191,6 +203,13 @@ export function trajectory({
           : offsetMeters;
         const [ox, oy, oz] = Array.isArray(raw) ? raw : [raw, 0, 0];
         group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
+      }
+
+      if (rotationRad !== null) {
+        const r = typeof rotationRad === 'function'
+          ? rotationRad({ u, local, rebase, t })
+          : rotationRad;
+        group.rotation.set(r[0] ?? 0, r[1] ?? 0, r[2] ?? 0);
       }
 
       const p = Math.max(0, Math.min(1, progress({ u, local, rebase, t })));

@@ -93,22 +93,22 @@ export const beats = [
     body: "A second faint ring, Mars' own 2.279e11-metre orbital path, and this time there is a bright point sitting almost on the crossing: the trajectory was aimed to arrive exactly when Mars does. Rendezvous, not coincidence.",
   },
   {
-    at: 5.30e11,
+    at: MARS_D - 5.97e8,
     heading: 'A point of light',
     body: "Mars is now the brightest thing ahead of the ship, an ochre-tinted point with no disc yet resolvable — the same threshold the Moon crossed for the outbound half of the other journey, reached here after a much longer, much emptier approach.",
   },
   {
-    at: 5.55e11,
+    at: MARS_D - 5.46e7,
     heading: 'A disc',
     body: "A small, hard-edged ochre disc, still smaller in this frame than the Moon ever appeared from lunar orbit — Mars is a smaller body, seen across a longer final approach. It is close enough now that its shape, not just its colour, is the subject.",
   },
   {
-    at: 5.590e11,
+    at: MARS_D - 1.016e7,
     heading: 'Ochre, and a white cap',
     body: "Mars fills a third of the frame: rust-red dust across most of the disc, a bright polar cap at one pole, and a hard terminator with no atmosphere to soften it. The colour is iron oxide — the planet is, quite literally, rusted.",
   },
   {
-    at: 5.598e11,
+    at: MARS_D - 5.79e6,
     heading: 'Olympus Mons, Valles Marineris',
     body: "Two features resolve on the approach: a shield volcano on the limb three times the height of Everest, and a canyon system scored across the disc that would stretch most of the way across the continental United States. Neither needs narration once it is actually visible.",
   },

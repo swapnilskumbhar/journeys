@@ -44,11 +44,25 @@ export const axisDef = {
     { from: 3.6e11, to: 5.0e11, weight: 1.05 },    // 15 A course correction
 
     // --- Mars approach -----------------------------------------------------
-    { from: 5.0e11, to: 5.30e11, weight: 0.90 },   // 16 Crossing Mars' orbit
-    { from: 5.30e11, to: 5.55e11, weight: 1.00 },  // 17 A point of light
-    { from: 5.55e11, to: 5.590e11, weight: 1.00 }, // 18 A disc
-    { from: 5.590e11, to: 5.598e11, weight: 1.05 }, // 19 Ochre, and a white cap
-    { from: 5.598e11, to: MARS_D - 1.25e5, weight: 1.05 }, // 20 Olympus Mons, Valles Marineris
+    // THE APPROACH MARKS ARE ALTITUDES, and they are chosen so that each beat's
+    // own MIDPOINT — 45% along, which is where every review samples — lands on
+    // the apparent size the beat's heading promises. Under the journey's scale
+    // law (`plan.js`: frame = 0.6 × the distance to Mars' centre) the drawn
+    // diameter of Mars is 1370 · R / c, so the four midpoint altitudes
+    // 3.53e8 → 3.46e7 → 8.2e6 → 3.24e6 m give 15 px → 133 px → 404 px → 738 px.
+    //
+    // The previous marks (5.30e11 … 5.598e11) put those midpoints at altitudes
+    // of 30 million to 200 thousand kilometres, where Mars is a fraction of a
+    // pixel — which is why "a point of light", "a disc", "ochre and a white cap"
+    // and "Olympus Mons" rendered as four identical black rectangles at 0.005
+    // occupancy. Honest dates and honest distances constrain where a beat SITS;
+    // the weights below still decide how much scroll it gets, so pacing is
+    // unchanged.
+    { from: 5.0e11, to: MARS_D - 5.97e8, weight: 0.90 },        // 16 Crossing Mars' orbit
+    { from: MARS_D - 5.97e8, to: MARS_D - 5.46e7, weight: 1.00 },  // 17 A point of light
+    { from: MARS_D - 5.46e7, to: MARS_D - 1.016e7, weight: 1.00 }, // 18 A disc
+    { from: MARS_D - 1.016e7, to: MARS_D - 5.79e6, weight: 1.05 }, // 19 Ochre, and a white cap
+    { from: MARS_D - 5.79e6, to: MARS_D - 1.25e5, weight: 1.05 },  // 20 Olympus Mons, Valles Marineris
 
     // --- entry, descent and landing ----------------------------------------
     // All linear — the last 125 km of a 5.6e11 m journey is 0.00002% of the

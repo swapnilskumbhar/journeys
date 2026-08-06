@@ -127,6 +127,12 @@ export function vehicle({
   // Bottom → top. `span` and every radius are fractions of lengthMeters.
   stages = [{ span: 0.6, r: 0.045, color: 0xe6e9ee, nozzles: 5, nozzleR: 0.016 }],
   capsule = { span: 0.07, r: 0.022, color: 0xb9c2cc, cone: 1 },
+  // A payload SHROUD, not a nose cone. See the block that builds it: a fairing
+  // is at least as wide as the stage under it, blunt, and split down the middle.
+  fairing = null,     // { span, r, color, gap, shed, tumble }
+  // Strap-on boosters flanking the first stage. See the block that builds them.
+  boosters = null,    // { count, span, r, radial, at, phase, color, noseColor,
+                      //   nozzleR, banded, shed, tumble }
   tower = null,       // { span, r, color, shed }
   panels = null,      // { count, span, width, at, tilt, color, deploy }
   dish = null,        // { r, at, tilt, color }
@@ -134,7 +140,7 @@ export function vehicle({
   // Fins / stabiliser vanes around the base of the first stage. A launch
   // vehicle without them is a smooth tube, and the tube is most of why the
   // stack read as a bollard rather than as a rocket.
-  fins = null,        // { count, span, spread, footR, color, deploy }
+  fins = null,        // { count, span, spread, thickness, at, phase, color }
   bands = 0,          // stripes per unit length; 0 = plain
   bandDepth = 0.75,
   plume = null,       // { span, r, core, edge, gain, soft, throttle }
@@ -220,15 +226,24 @@ export function vehicle({
   let y = -0.5;
   const parts = []; // { group, shed, dir }
 
-  const addPart = (shed, dir) => {
+  // `lateral` is a unit [x, z] the part also drifts along as it sheds — a
+  // strap-on booster leaves OUTWARD as well as down, and two boosters that fall
+  // straight through the core they were bolted to read as a rendering fault.
+  // `tumble` turns discarded hardware over as it goes; a spent stage holding a
+  // rigid attitude reads as a second working spacecraft flying in formation.
+  // Both default to the old behaviour exactly.
+  const addPart = (shed, dir, lateral = null, tumble = 0) => {
     const g = new THREE.Group();
     group.add(g);
-    parts.push({ group: g, shed: shed ?? null, dir });
+    parts.push({ group: g, shed: shed ?? null, dir, lateral, tumble });
     return g;
   };
 
+  let firstStageGroup = null;
+
   for (const st of stages) {
-    const g = addPart(st.shed, -1);
+    const g = addPart(st.shed, -1, null, st.tumble ?? 0);
+    if (!firstStageGroup) firstStageGroup = g;
     const h = st.span;
     const rBot = st.r;
     const rTop = st.topR ?? st.r;
@@ -252,23 +267,136 @@ export function vehicle({
     const n = st.nozzles ?? 0;
     if (n > 0) {
       const nr = st.nozzleR ?? rBot * 0.34;
-      const nh = nr * 2.1;
+      // A REAL ENGINE BELL FLARES AT THE EXIT. The original geometry was wide
+      // where it met the stage and narrow at the throat — backwards, and at
+      // small apparent sizes it reads as a set of pegs under the stack rather
+      // than as engines. `bell` is opt-in so every existing call site is
+      // untouched.
+      const nh = nr * (st.bell ? 2.6 : 2.1);
       const nozzleMat = mat(0x2b2f36);
+      const nozGeo = keep(st.bell
+        ? new THREE.CylinderGeometry(nr * 0.34, nr, nh, 16, 1, true)
+        : new THREE.CylinderGeometry(nr, nr * 0.45, nh, 14, 1, true));
+      const throatGeo = st.bell
+        ? keep(new THREE.CylinderGeometry(nr * 0.40, nr * 0.40, nh * 0.30, 12))
+        : null;
+      const throatMat = st.bell ? mat(0x5a6068, { emissive: 0.08 }) : null;
       for (let i = 0; i < n; i++) {
         // one on the axis, the rest on a ring — the F-1 arrangement, and also
         // the arrangement of nearly every clustered engine ever flown
         const onAxis = n % 2 === 1 && i === n - 1;
         const a = (i / Math.max(1, n - (n % 2 === 1 ? 1 : 0))) * Math.PI * 2;
         const rr = onAxis ? 0 : rBot * 0.52;
-        const noz = new THREE.Mesh(
-          keep(new THREE.CylinderGeometry(nr, nr * 0.45, nh, 14, 1, true)),
-          nozzleMat,
-        );
-        noz.position.set(Math.cos(a) * rr, y - nh * 0.42, Math.sin(a) * rr);
+        const noz = new THREE.Mesh(nozGeo, nozzleMat);
+        noz.position.set(Math.cos(a) * rr, y - nh * (st.bell ? 0.52 : 0.42), Math.sin(a) * rr);
         g.add(noz);
+        if (throatGeo) {
+          // The powerhead above the bell. A cluster of four bare cones under a
+          // flat plate is a set of funnels; the short collar between bell and
+          // stage is what makes it a cluster of ENGINES.
+          const th = new THREE.Mesh(throatGeo, throatMat);
+          th.position.set(Math.cos(a) * rr, y - nh * 0.06, Math.sin(a) * rr);
+          g.add(th);
+        }
       }
     }
     y += h;
+  }
+
+  // --- strap-on boosters ---------------------------------------------------
+  //
+  // WHY THIS IS IN THE ARCHETYPE. Almost no heavy-lift launcher is a single
+  // tube: SLS, Delta IV Heavy, Falcon Heavy, Atlas V, Ariane 5 and Soyuz are
+  // all identified from a flanked, three-lobed base long before any detail
+  // resolves, and a stack drawn as one smooth cylinder is a BOLLARD by
+  // construction — no lighting, colour or scale rescues it. This is the same
+  // class of gap `tower` and `instrumentedProbe` were written for.
+  //
+  // Boosters are their own shed parts and leave OUTWARD as well as down,
+  // because they separate long before first-stage cutoff and they have to
+  // visibly clear the core they were bolted to. Default null: every existing
+  // call site renders byte-identically.
+  if (boosters && (boosters.count ?? 2) > 0) {
+    const base = stages[0] ?? { span: 0.6, r: 0.045 };
+    const n = boosters.count ?? 2;
+    const bs = boosters.span ?? base.span * 0.80;
+    const br = boosters.r ?? base.r * 0.55;
+    const radial = boosters.radial ?? (base.r + br) * 0.97;
+    const y0 = -0.5 + (boosters.at ?? 0);
+    const phase = boosters.phase ?? 0;
+    const bodyMat = mat(boosters.color ?? 0xe9ecef, { banded: boosters.banded ?? false });
+    const noseMat = mat(boosters.noseColor ?? boosters.color ?? 0xe9ecef);
+    const darkMat = mat(0x3c4148);
+    const nozMat = mat(0x2b2f36);
+    const noseH = br * 2.6;
+    const bnr = boosters.nozzleR ?? br * 0.66;
+    const bodyGeo = keep(new THREE.CylinderGeometry(br, br, bs, 20, 1, true));
+    const noseGeo = keep(new THREE.CylinderGeometry(br * 0.10, br, noseH, 20, 1, true));
+    const skirtGeo = keep(new THREE.CylinderGeometry(br * 1.09, br * 1.09, bs * 0.055, 20));
+    const bnGeo = keep(new THREE.CylinderGeometry(bnr * 0.44, bnr, bnr * 2.2, 14, 1, true));
+    // The forward and aft attach struts. Two cylinders standing beside a third
+    // are three rockets in formation; the struts are what say "bolted on".
+    const strutGeo = keep(new THREE.BoxGeometry(Math.max(radial - base.r - br, br * 0.2), br * 0.26, br * 0.26));
+    for (let i = 0; i < n; i++) {
+      const a = phase + (i / n) * Math.PI * 2;
+      const g = addPart(boosters.shed, -1, [Math.cos(a), Math.sin(a)], boosters.tumble ?? 0);
+      const px = Math.cos(a) * radial;
+      const pz = Math.sin(a) * radial;
+      const put = (geo, m, yy, x = px, z = pz) => {
+        const mesh = new THREE.Mesh(geo, m);
+        mesh.position.set(x, yy, z);
+        g.add(mesh);
+        return mesh;
+      };
+      put(bodyGeo, bodyMat, y0 + bs / 2);
+      put(noseGeo, noseMat, y0 + bs + noseH / 2);
+      put(skirtGeo, darkMat, y0 + bs * 0.07);
+      put(skirtGeo, darkMat, y0 + bs * 0.92);
+      put(bnGeo, nozMat, y0 - bnr * 0.95);
+      for (const at of [0.12, 0.88]) {
+        const s = put(strutGeo, darkMat, y0 + bs * at, Math.cos(a) * (radial + base.r) * 0.5, Math.sin(a) * (radial + base.r) * 0.5);
+        s.rotation.y = -a;
+      }
+    }
+  }
+
+  // --- fins ----------------------------------------------------------------
+  //
+  // `fins` was a DECLARED PARAMETER THAT DREW NOTHING for as long as this file
+  // existed, with a comment above it correctly diagnosing why the stack read as
+  // a bollard. A declared parameter that draws nothing is worse than an absent
+  // one, because it makes every call site look correct.
+  //
+  // A fin is a swept plate, not a box: the leading edge running out and back
+  // from the top of the root is the whole read, and the trailing edge dropping
+  // just below the base is what makes the vehicle look like it stands on
+  // something. Extruded from a planform so the sweep is authored once.
+  if (fins && (fins.count ?? 4) > 0) {
+    const base = stages[0] ?? { span: 0.6, r: 0.045 };
+    const n = fins.count ?? 4;
+    const fh = fins.span ?? base.span * 0.24;
+    const spread = fins.spread ?? base.r * 1.25;
+    const th = fins.thickness ?? base.r * 0.16;
+    const finMat = mat(fins.color ?? 0xb9c0c8);
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(0, fh);
+    shape.lineTo(spread, fh * 0.30);
+    shape.lineTo(spread, -fh * 0.10);
+    shape.closePath();
+    const finGeo = keep(new THREE.ExtrudeGeometry(shape, { depth: th, bevelEnabled: false }));
+    finGeo.translate(0, 0, -th / 2);
+    const y0 = -0.5 + (fins.at ?? 0);
+    const host = firstStageGroup ?? group;
+    for (let i = 0; i < n; i++) {
+      // The planform is built in the x-y plane and extruded along z, so a
+      // rotation of -a about y puts its +x on the outward radial.
+      const a = (fins.phase ?? Math.PI / 4) + (i / n) * Math.PI * 2;
+      const f = new THREE.Mesh(finGeo, finMat);
+      f.rotation.y = -a;
+      f.position.set(Math.cos(a) * base.r * 0.92, y0, Math.sin(a) * base.r * 0.92);
+      host.add(f);
+    }
   }
 
   if (capsule) {
@@ -280,6 +408,50 @@ export function vehicle({
     const m = new THREE.Mesh(keep(geo), mat(capsule.color ?? 0xb9c2cc));
     m.position.y = y + h / 2;
     g.add(m);
+    y += h;
+  }
+
+  // --- the payload fairing --------------------------------------------------
+  //
+  // NOT A NOSE CONE. `capsule({ cone: 1 })` is a narrowing cylinder, and a gold
+  // one on top of a white stack is a party hat — which is exactly what this
+  // journey shipped. A payload shroud is at least AS WIDE as the stage under
+  // it, blunt rather than pointed, and split down the middle: it is two half
+  // shells clamped together, and the seam plus the shoulder are the two things
+  // that make it read as a shroud with something inside it.
+  //
+  // Drawn as two half-lathes with a real angular gap, so the split is geometry
+  // rather than a painted line — and so the reader can see there is a hollow
+  // in there.
+  if (fairing) {
+    const g = addPart(fairing.shed, 1, null, fairing.tumble ?? 0);
+    const h = fairing.span;
+    const fr = fairing.r;
+    const RINGS = 22;
+    const profile = [];
+    for (let i = 0; i <= RINGS; i++) {
+      const t = i / RINGS;
+      // A barrel to 45% of the height, then an elliptical ogive to a blunt tip.
+      const k = t < 0.45 ? 1 : Math.sqrt(Math.max(0, 1 - ((t - 0.45) / 0.56) ** 2));
+      profile.push(new THREE.Vector2(Math.max(fr * k, fr * 0.09), t * h));
+    }
+    const gap = fairing.gap ?? 0.07;
+    const halfGeo = keep(new THREE.LatheGeometry(profile, 30, gap / 2, Math.PI - gap));
+    const fmat = mat(fairing.color ?? 0xe9ecef);
+    fmat.side = THREE.DoubleSide;
+    for (const phi of [0, Math.PI]) {
+      const m = new THREE.Mesh(halfGeo, fmat);
+      m.rotation.y = phi;
+      m.position.y = y;
+      g.add(m);
+    }
+    // The separation plane where the shroud meets the stage below it.
+    const ring = new THREE.Mesh(
+      keep(new THREE.CylinderGeometry(fr * 1.04, fr * 1.04, h * 0.035, 26)),
+      mat(0x3c4148),
+    );
+    ring.position.y = y + h * 0.018;
+    g.add(ring);
     y += h;
   }
 
@@ -473,8 +645,13 @@ export function vehicle({
         // Shed parts fall AWAY along the stack axis and fade. The distance is
         // deliberately generous — a stage that only slides a tenth of its own
         // length reads as a rendering glitch, not as a separation.
-        shedVec.set(0, p.dir * s * 1.6, 0);
+        shedVec.set(
+          (p.lateral ? p.lateral[0] : 0) * s * 1.15,
+          p.dir * s * 1.6,
+          (p.lateral ? p.lateral[1] : 0) * s * 1.15,
+        );
         p.group.position.copy(shedVec);
+        if (p.tumble) p.group.rotation.set(s * p.tumble * 1.7, s * p.tumble * 0.6, s * p.tumble * 2.3);
         const po = o * (1 - s * s);
         p.group.visible = po > 0.004;
         for (const m of partMeshes[i]) m.material.opacity = po;
@@ -494,13 +671,19 @@ export function vehicle({
         // shorter, dimmer, narrower flame, and driving only the opacity produces
         // a full-size ghost.
         const len = 0.25 + th * 0.95;
+        // WHERE THE ENGINE IS, which is not always the bottom of the stack. Once
+        // a first stage has shed, the burning engine is the one on the stage
+        // ABOVE it, and a plume left at y = -0.5 hangs in space under a vehicle
+        // that is no longer attached to it. Default 0 — every existing call site
+        // keeps the old position exactly.
+        const at = typeof plume.at === 'function' ? plume.at({ u, local, t }) : (plume.at ?? 0);
         plumeCore.scale.set(0.55 + th * 0.65, len, 0.55 + th * 0.65);
-        plumeCore.position.y = -0.5 - (plume.span ?? 0.5) * len * 0.5;
+        plumeCore.position.y = -0.5 + at - (plume.span ?? 0.5) * len * 0.5;
         plumeMat.uniforms.uOpacity.value = o * th * (plume.gain ?? 0.9);
         plumeCore.visible = plumeMat.uniforms.uOpacity.value > 0.004;
 
         plumeCollar.scale.copy(plumeCore.scale);
-        plumeCollar.position.y = plumeCore.position.y * 1.05;
+        plumeCollar.position.y = (-0.5 + at) + (plumeCore.position.y - (-0.5 + at)) * 1.05;
         collarMat.uniforms.uOpacity.value = o * th * (plume.smokeGain ?? 0.45);
         plumeCollar.visible = collarMat.uniforms.uOpacity.value > 0.004;
       }
