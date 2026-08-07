@@ -1,4 +1,129 @@
-# voyager — design brief
+# voyager — REWORK BRIEF (2026-07-31)
+
+**This section supersedes the beat staging in the original brief below. The
+axis reasoning below still stands and is unchanged; the beat list, the camera
+plan and the layer plan are replaced.**
+
+The first build scored **0.032 mean occupancy, 0.6 mean adjacent, 30 of 32
+beats flagged** — the worst in the repo, and the journey that motivated
+`frame-check.mjs`. A blind review of it reads: *"the same white lampshade shape
+in the same position on black; beats 22–32 are one picture."*
+
+The writing is good and is mostly kept. What failed is that a journey about
+distance was staged as a constant-size object on an empty field.
+
+**Note the original brief's own opening paragraph, still below: it says the
+design work here "is almost entirely about NOT looking like twenty black
+rectangles with captions".** It named the exact failure mode and then shipped
+it. A brief that identifies the risk is not a control; that is what the gate is
+for.
+
+## What went wrong, precisely
+
+1. **The sticker.** The probe was drawn at near-constant apparent size in all 32
+   frames, so nothing in the picture ever said *travel* — a HUD decal, not a
+   world object. It failed the name-the-object test outright.
+2. **Eleven beats of nothing at the end.** Beats 22–32 all say some version of
+   "space gets emptier" and all render as one white shape on black. That is a
+   beat-SELECTION failure, not a staging one, and no amount of tuning fixes it.
+3. **The encounters were dots.** Jupiter peaked at 0.074 occupancy, Saturn at
+   0.066 — the copy promises a world and the frame delivers a point. Same defect
+   `CLAUDE.md` already documents for the K–Pg beat.
+4. **Density.** 403 lines of `layers.js` over 32 beats = 12.6/beat, half the
+   `design-lint` floor and a fifth of `big-bang`'s 56.
+
+## The three structural decisions
+
+**32 beats → 22.** The outer solar system goes from eleven beats to four. Cut:
+"The Moon, in passing", "Banded cloud tops", "Cruise to Uranus", "Cruise to
+Neptune", "Sunlight fading toward starlight", "The termination shock" (merged
+into the heliopause), "Interstellar space", "Deeper into the dark", "The Oort
+cloud". Every one of those was a caption over the same picture.
+
+**The ship stops being the subject.** It appears in six beats at genuinely
+different sizes and angles — 90 px at cruise, a 30 px silhouette against
+Jupiter's lit face, absent entirely through the encounters — and is gone from
+the rest. Continuity is carried instead by the **Sun**, which shrinks and dims
+monotonically and measurably across the whole axis, and by the **trajectory**,
+flown part bright and remaining part faint so position-in-plan is always
+readable.
+
+**Encounters get their own tight axis segments.** Each giant planet needs a
+window sized to ~40 planet-radii plus a separately-weighted departure segment —
+the departure's weight is the whole control over where the beat's midpoint
+lands. The original used ~0.05 AU windows, which at Saturn is still ~100
+planet-radii and renders as a point. Each beat's `at` mark must sit ON the
+body's true orbital radius; Saturn's were originally 0.4–0.6 AU short of its
+real 9.58 AU, so even a correct window was tight around the wrong point.
+
+## Beat sheet
+
+`px` is the subject's intended size at 1440 wide. `midpoint` is what is on
+screen 45% into the beat, which is where every review samples.
+
+`px` is measured on the built journey at 1440 wide, not intended — where the
+built figure differs from what this brief first asked for, the reason is given
+in the row and in "Deviations" below.
+
+| # | heading | midpoint | archetypes | px | hue |
+| --- | --- | --- | --- | --- | --- |
+| 1 | The Grand Tour alignment | The ecliptic seen from above its plane as a lit dust disc 35 AU across, the Sun burning at its centre, the four giant planets as markers on their own orbit circles strung out along one radius | particleField, glowSphere, trajectory | Sun 220, planets 26–70 | warm gold |
+| 2 | Leaving Earth | Earth a lit gibbous filling the left half, city lights on the terminator; the Titan-Centaur a small lit stack crossing right of it; the escape path arcing away to frame right | planet, vehicle, trajectory, particleField | Earth 570, ship 110 | blue |
+| 3 | Into deep cruise | The spacecraft large in three-quarter view mid-frame, bus, boom and dish all readable; the zodiacal dust a band across the frame; Mars a small ochre point BEHIND at frame left, already passed; the Sun a 145 px glare at the left | vehicle, particleField, glowSphere, trajectory | ship 180, Sun 145, Mars 30 | ochre |
+| 4 | The asteroid belt | Irregular boulders at three depths, the nearest large and dark on its shadow side, the field receding into the frame with grit between; Sun smaller now; ship small among them | rocks, glowSphere, vehicle, particleField | nearest rock 260 | grey-brown |
+| 5 | Approaching the giant | Jupiter a banded disc right of centre and clearly growing; the ship a small lit shape against its face; the Sun reduced to a bright point at far left | planet, vehicle, glowSphere, trajectory | Jupiter 500, ship 40 | tan |
+| 6 | Jupiter: the Great Red Spot | Jupiter fills two-thirds of the frame, bands running horizontally, the Great Red Spot a distinct oval below the equator with its wake trailing round the belt | planet, blob, particleField | Jupiter 750 | tan / brick |
+| 7 | Io's volcanoes | Io in the foreground, sulphur-yellow and volcanically repaved, a plume rising in a column off its limb; Jupiter behind at its true 19° from Io's own orbit | planet, particleField | Io 485, Jupiter 342 | sulphur yellow |
+| 8 | Europa's cracked ice | Europa filling the frame centre-right, a dozen bright lineae running as ARCS across its face, almost no craters; Jupiter a bright crescent edge at frame left | planet, trajectory | Europa 600, Jupiter 215 | pale blue-white |
+| 9 | The gravity assist | The whole hyperbolic flyby in frame — Jupiter left of centre, the path wrapping past it at its real 4.9-radius periapsis, flown part bright and unflown faint, the spacecraft on it | trajectory, planet, vehicle, particleField | path spans frame, Jupiter 150, ship 40 | tan |
+| 10 | Cruise to Saturn | The Sun measurably smaller and dimmer than beat 3, the ship in a plainly different attitude with its dish edge-on, Saturn a pale point ahead at frame right at its true offset, the galactic band behind | glowSphere, vehicle, particleField, trajectory | Sun 60, ship 400 | deep blue |
+| 11 | Saturn: the rings edge-on | Saturn's globe right of centre with the ring plane a single razor-thin bright line crossing the whole frame horizontally | planet, particleField, trajectory | Saturn 620, ring line 1440 | pale gold |
+| 12 | The rings, lit | Rings tilted into sunlight, resolved into separate annuli with the Cassini division a real gap and individual ringlets over them; globe partly out of frame | planet, particleField, trajectory | rings 1300 | gold |
+| 13 | Titan's haze | Titan a featureless orange disc left of centre, its limb softened by a haze shell; Saturn's ringed bulk behind at reduced brightness | planet, glowSphere, particleField | Titan 560, Saturn 98 | orange |
+| 14 | Voyager 1 and 2 diverge | Two ticked trajectory ribbons splitting from one point, one climbing out of the plane and the other holding it; both spacecraft on them at different attitudes; Saturn a point behind | trajectory, vehicle, glowSphere, particleField | ships 240, split spans 900 | cyan / white |
+| 15 | Uranus: tipped on its side | Uranus a pale cyan disc, nearly featureless, its ring system standing VERTICALLY across the frame — the 98° tilt readable in one look | planet, particleField, trajectory | Uranus 500, rings 1000 | pale cyan |
+| 16 | Neptune: the deepest blue | Neptune deep blue right of centre, banded, with the Great Dark Spot a distinct oval on the disc and diffuse methane cirrus below it | planet, blob, particleField | Neptune 550 | deep blue |
+| 17 | Triton's nitrogen geysers | Triton in the foreground, pinkish and cratered, dark geyser plumes off the terminator and dark streaks blown downwind across the ice; Neptune a blue crescent clear of its limb | planet, particleField | Triton 560, Neptune 143 | pink-white |
+| 18 | Pluto's distance, and the Kuiper belt | A sparse field of icy bodies at three depths and a range of sizes, dimly lit, receding into the frame; no dominant subject — this beat is about the field | rocks, particleField, glowSphere | nearest body 200 | dim grey |
+| 19 | The Pale Blue Dot | A wide shaft of scattered sunlight crossing the frame diagonally with a fainter second one behind it, and inside the first a single bright point — Earth — everything else dark | particleField, glowSphere | Earth 4, shaft 1300 | warm streak on black |
+| 20 | The heliopause | A structured plasma boundary filling the frame as a knotted violet shell, warm solar-wind plasma piled up on the sunward side and colder interstellar material past it | filaments, particleField | spans frame | violet |
+| 21 | The Golden Record | The record filling most of the frame at an angle, gold, its grooves and engraved cover diagram legible as marks; the spacecraft's structure dark around it | panel, vehicle, backdrop | record 665 | gold |
+| 22 | The Sun as just another star | A dense field of stars, warm and cool, with nothing distinguishing any of them; the Sun one unremarkable 4 px point among its neighbours | particleField, glowSphere | Sun 4 | black / white |
+
+### Deviations from the brief above, and why
+
+- **Beat 3 — Mars is behind, not ahead.** The beat's own copy says "past Mars'
+  orbital distance", and its midpoint lands at 1.95 AU, so Mars is 0.43 AU
+  astern. The brief asked for it at frame right; putting it there would have
+  contradicted the sentence directly under it.
+- **Beat 9 — Jupiter is 150 px, not 700.** These two cannot both be true.
+  Voyager 1's real closest approach was 4.9 Jupiter radii, so a true-scale
+  flyby path is ten planet-widths across; at the 700 px framing the brief
+  implies, every part of the trajectory that BENDS is outside the frustum, and
+  the beat becomes a third portrait of the same banded disc. The manoeuvre is
+  the subject, so the manoeuvre got the frame.
+- **Beat 9 — the limb is upper-left, not lower-left.** The copy panel owns the
+  lower left, and `frame-check` masks it; a subject placed there is both
+  hidden from the reader and invisible to the gate.
+- **Beat 21 — 665 px, not 700.** Arithmetic, not judgement: at a 0.30 m frame
+  a 0.30 m disc is 665 px.
+
+## Pacing
+
+22 beats, flat 1.5 vh floor — every beat stages a concrete scene, so there is no
+tiered floor of the kind `big-bang` needs. Target length ~62 vh. Beat 19, the
+Pale Blue Dot, takes the widest weight in the journey: it is the emotional
+centre and the one beat that must not be rushed.
+
+## Density budget
+
+22 beats × 40–60 lines = **880–1320 lines of `layers.js`**. The original was
+403. Under 550 and the journey has not been built; `design-lint.mjs` will say
+so.
+
+---
+
+# Original brief (superseded above, retained for the axis reasoning)
 
 The Voyager mission, Earth to interstellar space and beyond: launch inside a
 once-every-176-years planetary alignment, four giant-planet encounters bought

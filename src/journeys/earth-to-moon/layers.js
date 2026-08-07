@@ -4,6 +4,7 @@ import {
 } from '../../archetypes/index.js';
 import { R_EARTH, R_MOON, TOTAL, MOON_D, CROSSOVER, overMoon, walked } from './distance.js';
 import { band, plin, plog, clamp01, mixHex } from './curve.js';
+import { groundRelativeOffsetMeters } from '../../kit/ground-frame.js';
 
 // The visual stack. Every entry is an archetype plus parameters — no bespoke
 // Three.js in this file, which is rule 2 doing its job.
@@ -28,6 +29,9 @@ import { band, plin, plog, clamp01, mixHex } from './curve.js';
 
 export function makeLayers(uAt, dAt) {
   const L = (id, fromD, toD, build) => ({ id, from: uAt(fromD), to: uAt(toD), build });
+
+  // "This stands on the planet, not on the vehicle." See src/kit/ground-frame.js.
+  const onGround = groundRelativeOffsetMeters(dAt);
 
   // Fade a layer in and out on FRAME WIDTH. Ground scenery is only meaningful
   // across a couple of decades of frame — a 200 m relief is a wall at a 20 m
@@ -266,6 +270,13 @@ export function makeLayers(uAt, dAt) {
         lightDir: [0.8, 0.4, -0.3],
         sun: () => 0.45,
         night: () => 0.1,
+        // THE ORIGIN IS THE SPACECRAFT, SO THE PAD HAS TO BE PUSHED DOWN.
+        // Every other layer standing on Florida — the terrain shells, the
+        // service tower, the pad lights — carried `-dAt(u)`; this one had no
+        // way to say it, because `blocks` had no `offsetMeters` at all. The
+        // buildings therefore rode the vehicle upward at a constant apparent
+        // size for the whole of the first two beats.
+        offsetMeters: onGround(),
         respectBand: false,
         opacity: ({ u, rebase }) =>
           frames(rebase, 70, 900) * clamp01((1.6e3 - dAt(u)) / 1.2e3),

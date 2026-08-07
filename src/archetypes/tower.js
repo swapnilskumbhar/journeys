@@ -148,7 +148,12 @@ export function tower({
     const sg = keep(new THREE.BoxGeometry(len * 0.9, th * 0.6, th * 0.6 * (heightMeters / widthMeters)));
     const s = new THREE.Mesh(sg, frameMat);
     s.position.set(dir * (0.5 + len * 0.45), a.at - th * 3.2, 0);
-    s.rotation.z = dir * 0.22;
+    // THE FRAME IS SCALED NON-UNIFORMLY (aspect, 1, aspect), so a rotation
+    // authored in local space is SHEARED on the way out: a 0.22 rad lean on a
+    // tower seven times taller than it is wide came out at 59°, and the support
+    // struts rendered as long spindly diagonals shooting past the tower top.
+    // Pre-distort the angle so the lean means 0.22 rad in the WORLD.
+    s.rotation.z = dir * Math.atan(aspect * Math.tan(0.22));
     s.castShadow = true;
     frame.add(s);
   }

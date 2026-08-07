@@ -37,24 +37,61 @@ measures what is left. Three numbers per beat:
 
 Calibration, measured on the five journeys in this repo:
 
-| journey | occupancy | contrast | adjacent | flagged |
-| --- | --- | --- | --- | --- |
-| `big-bang` — the one that works | **0.525** | **0.149** | **13.9** | 5/39 (13%) |
-| `earth-to-mars` | 0.372 | 0.134 | 8.3 | 13/28 (46%) |
-| `earth-to-moon` | 0.350 | 0.120 | 6.1 | 10/28 (36%) |
-| `crust-to-core` | 0.066 | 0.043 | 11.0 | 20/27 (74%) |
-| `voyager` | 0.026 | 0.050 | 0.5 | 32/32 (100%) |
+| journey | occupancy | contrast | adjacent | flagged | ship bar |
+| --- | --- | --- | --- | --- | --- |
+| `big-bang` — the one that works | **0.522** | **0.149** | **13.9** | 5/39 (13%) | **pass** |
+| `earth-to-moon` (after rework) | 0.451 | 0.134 | 8.9 | 4/25 (16%) | fail — flagged |
+| `earth-to-mars` | 0.372 | 0.134 | 8.3 | 13/28 (46%) | fail |
+| `crust-to-core` | 0.066 | 0.044 | 11.0 | 19/27 (70%) | fail |
+| `voyager` | 0.032 | 0.050 | 0.6 | 30/32 (94%) | fail — all four |
 
-Aim for `big-bang`'s column. Under ~0.25 occupancy or ~6 mean adjacent, the
-journey is in trouble no matter how good the writing is.
+Aim for `big-bang`'s column. `--gate=ship` applies the journey-level bar —
+**occupancy ≥ 0.25, contrast ≥ 0.06, adjacent ≥ 6.0, flagged ≤ 15%** — which is
+what `scripts/journey-gate.mjs` enforces. Note that `earth-to-moon` misses it by
+a single beat, and that is correct: its lunar-orbit stall is a real, known
+defect.
 
 The gate is a floor, not a target — a frame can clear every threshold and still
 be dull. **Failing one is near-proof it is broken; passing all three is not
 proof it is good.** Run it, then still look at the contact sheet.
 
+`clip` is a fifth number, reported but rarely fired: the fraction of the picture
+flattened to near-white, which is what a body lit past the tone mapper's ceiling
+does — it loses every feature it had and exposes its own tessellation. Across
+all 151 shipping beats the maximum is 0.018, so anything approaching the 0.06
+gate is a regression, not a bright subject.
+
 This is the same move the vh pacing gate made: a defect you can only describe in
 adjectives ("too fast", "looks samey") stays unfixed until it is measured in the
 unit the reader experiences.
+
+## The density law
+
+Before any composition advice, the finding that predicts journey quality better
+than anything else here — **lines of `layers.js` per beat**:
+
+| journey | layers/beat | occupancy |
+| --- | --- | --- |
+| `big-bang` | **56** | 0.522 |
+| `earth-to-moon` | 36 | 0.451 |
+| `earth-to-mars` | 20 | 0.372 |
+| `voyager` | 13 | 0.032 |
+| `crust-to-core` | 12 | 0.066 |
+
+The four journeys built by agents were not failures of taste. **They under-built
+the world by four to five times and then declared victory.** `voyager` declares
+32 beats on top of 403 lines of layer code, which is about one archetype per
+beat — that is the "one object floating in void" failure mode arrived at by
+construction, before a single compositional decision was made.
+
+So this is a *budget*, not just a diagnostic. A beat needs three planes (near,
+mid, far). One archetype cannot be three planes. Expect **40–60 lines of layer
+declaration per beat**; `scripts/design-lint.mjs` fails under 25, which is not a
+quality target but the line under which a journey has demonstrably not been
+built at all.
+
+If you find yourself with a thin `layers.js` and a long beat list, the answer is
+**fewer beats, each properly built** — never more captions over the same world.
 
 ## The five failure modes
 
@@ -149,9 +186,93 @@ Real failures caught this way, all of which passed every numeric gate:
   drawn at the same screen position as the planet below it. An event needs to be
   separated from whatever it is passing in front of — against sky, against
   black, or offset — or the reader assigns it to the wrong object.
+- **A deep-space probe that read as a TABLE LAMP** — a smooth white bowl, a gold
+  ball, a tapered base and one spike. It was `vehicle`, an axial launch-stack
+  generator, with `capsule` standing in for the payload and `tower` for the
+  magnetometer boom. Everything in that list stacks on one line, so the lamp was
+  produced by construction. It scored 0.42 occupancy and passed every numeric
+  bar in the repo. What fixed it was `instrumentedProbe`: a real paraboloid with
+  a thick rim, a feed horn on a strut tripod, and booms leaving the bus in three
+  different directions. **The struts and the asymmetry are the read** — they
+  break the silhouette into something a stranger can name.
 
 When an archetype cannot make the object nameable, that is a gap in the
 archetype library (rule 2), not something to fix with a per-journey hack.
+
+## The protagonist has to be on screen
+
+If the journey is *about* something that travels — a spacecraft, a vehicle, a
+diver — that thing belongs in every beat, not only in the beats that stage it.
+
+`voyager` shipped with a spacecraft in **5 of its 22 beats**. Every appearance
+was its own windowed layer, so the craft blinked in and out and the gaps between
+windows were most of the journey. Worse, the five appearances were at five
+different sizes in four different corners, so even where it was present there
+was nothing for a reader to track from one beat to the next. The result reads as
+a slideshow of scenery that happens to be in the right order.
+
+One continuous presence — same corner, same size, every beat — fixes both. Three
+things stop it reading as a sticker pasted on the frame:
+
+- **A true distance in front of the lens**, so it parallaxes against everything
+  it passes rather than sitting flat on top.
+- **The same light vector as every other object**, so it dims and warms with the
+  journey instead of staying lit from nowhere.
+- **An attitude that is a slow function of `u`**, so it turns across the piece
+  and is never twice at the same angle. Pure function of `u` — rule 8 intact.
+
+It measurably RAISES occupancy, because a turning object reveals more of itself.
+
+**A fixed world offset will not hold a fixed screen position** if the camera's
+bearing changes across the journey. Derive the position from the same basis the
+camera is aimed with — one formula, not two that have to agree.
+
+**A mute is a promise that something better is taking over.** When a beat stages
+the subject deliberately, the persistent layer should stand down — but check
+what it is standing down FOR. Two of `voyager`'s "hero" shots drew the craft at
+25 and 40 px while suppressing a 140 px escort. That is trading a legible
+subject for an invisible one.
+
+## Things that move together must be derived together
+
+Two objects that have just come apart are **one event**. Staging them as two
+independent placements — each posed well, each in its own spot — reads as two
+stickers, because nothing says they were ever attached or that they share a
+velocity.
+
+Give them one centroid, one shared direction, and one gap that **starts at zero**
+and grows. Coincident at the start is what "still attached" means. And let the
+discarded half tumble: a spent stage holding a rigid attitude reads as a second
+working craft flying in formation.
+
+The same applies to a **path and the thing travelling along it**. If the line is
+drawn from its own formula in world space while the subject is placed by some
+other rule, the two have no reason to meet and they will not — the trajectory
+crosses empty frame while the craft flies beside it. Make one of them derive
+from the other.
+
+## Leaving somewhere means it gets smaller
+
+A beat called "Leaving X" has to show X shrinking. Three separate mechanisms
+each broke this in `voyager`, and any of them is enough on its own:
+
+- **The layer's MOUNT RANGE.** `L('earth', 1.0, 1.02)` unmounted the planet at
+  three million kilometres regardless of opacity. When something vanishes and
+  its opacity envelope looks right, check the range first.
+- **A frame-width visibility gate**, where the frame law moves sharply. A
+  `frames(lo, hi)` gate is only open in the slice of the axis where the frame
+  sits between them — and a table running 5.2e12 → 1.5e7 → 1.0e11 crosses that
+  slice twice, so the subject pops in and pops out.
+- **Holding the frame across the beat.** Holding is right when the subject is at
+  the origin. For a body receding *behind* you, the frame must WIDEN faster than
+  you recede, or it barely changes size.
+
+And check whether the axis quantity is an **altitude** or a **centre distance**
+before you place a body at it. `voyager` printed "km from Earth" and placed
+Earth's centre at that number — off by one planetary radius, which put the
+camera inside the planet for the opening beats. A sphere with front-face culling
+seen from inside draws nothing at all, which looked exactly like a missing
+layer.
 
 ## A body that clips to white is a hole in the frame
 
@@ -204,24 +325,96 @@ to the authored direction on release. That is a genuine change to the job:
 - **Right of centre.** The panel owns the lower left; `PAN` pushes single
   subjects clear of it. Field beats stay centred.
 
+## The blind review
+
+The one rule at the top of this file is unenforceable by good intentions. You
+cannot un-see a heading: read "Io's volcanoes", look at a black frame with a
+dot in it, and your brain supplies the volcano. Four journeys shipped broken
+with that rule already written down, reviewed by someone who had genuinely
+looked at every screenshot.
+
+So the captions come off:
+
+```bash
+node scripts/shots.mjs <id> --blind --sheet
+```
+
+Hides the copy panel, ribbon, hero and back-link, and — just as important —
+names the files `beat-01.png`, not `09-io-s-volcanoes.png`. The index→heading
+key is written *outside* the frames directory, so the whole directory can be
+handed to a reviewer with nothing in it that says what the frames are meant to
+be. The contact-sheet captions drop the axis readout too, since "9.58 AU" tells
+a reviewer exactly what they are looking at.
+
+**A blind review is only worth anything if the reviewer has not read the
+brief.** The reviewer names what it sees; the orchestrator diffs that against
+the midpoint sentences. Where they disagree, the frame is wrong — not the
+reviewer.
+
+```bash
+node scripts/review.mjs <id> [--film] [--via=terra|agent] [--diff]
+```
+
+Default is one bounded `gpt-5.6-terra` call. Prefer it over the
+`journey-blind-reviewer` subagent for two reasons beyond cost: the bill is
+knowable in advance, and **blindness stops being a request and becomes a
+guarantee** — with a subagent you are trusting it not to open the key file
+sitting beside the frames, whereas an API request simply does not contain one.
+Restricting what the reviewer CAN know is the mechanism; asking it to be
+objective is not. `--via=agent` prints the brief for the subagent when you want
+a second opinion from a different model.
+
+### The blind review answers one question. There is a second one.
+
+| | sees | answers |
+| --- | --- | --- |
+| `review.mjs` | frames only | *does the picture show what the copy claims?* |
+| `critique.mjs` | frames **+ headings + source** | *how do I make it better?* |
+
+Keep both. Blindness is what makes the first trustworthy — but "how do I fix
+this" is **unanswerable** blind, because the fix nearly always lives in a line
+of source no frame can show you. `voyager`'s real finding was not "the dish
+looks wrong"; it was "`tower` is being used as a magnetometer boom and `capsule`
+as a payload, so the silhouette is a lamp by construction" — visible only by
+reading the frame against `layers.js`. A single merged tool that sometimes sees
+the source would quietly forfeit the blindness guarantee for nothing.
+
 ## Workflow
 
 1. **Design brief first** (`src/journeys/<id>/DESIGN.md`), before any code —
-   axis segments with justified weights, and for every beat: heading, real
-   quantity, and **what is on screen at the beat's MIDPOINT**. Beats are
-   reviewed mid-beat; a layer that has arrived-and-left by then is a black
-   frame with a caption. If you cannot write the midpoint sentence, the beat is
-   not designed yet. Skipping this step is what produced the worst journey in
+   axis segments with justified weights, plus a **beat sheet table** with one
+   row per beat and these columns:
+
+   | # | heading | midpoint | archetypes | px | hue |
+   | --- | --- | --- | --- | --- | --- |
+
+   `midpoint` is **what is on screen 45% into the beat**, which is where every
+   review samples; a layer that has arrived-and-left by then is a black frame
+   with a caption. `px` is the intended on-screen size of the subject at 1440
+   wide — "visible" is not a bar. If you cannot write the midpoint sentence, the
+   beat is not designed yet. Skipping this step produced the worst journey in
    the table above.
+
+   `node scripts/design-lint.mjs <id>` checks the sheet is complete, that its
+   headings still match `beats.js` in order, and that the density budget holds.
 2. **Build**, then `vite build` — the dev server hides duplicate-identifier
    errors as a blank page with no console output.
-3. `node scripts/smoke.mjs` — axis, seams, and the vh pacing floor.
-4. `node scripts/frame-check.mjs <id> --look=32` — fix every EMPTY / FLAT /
-   SAME / FLANK-EMPTY before looking at anything.
-5. `node scripts/shots.mjs <id> <out> <port> --sheet`, then **read the contact
-   sheet with the Read tool and look at it.** Ask specifically: could I tell
-   these beats apart with the captions covered? Iterate; expect several rounds.
-6. `node scripts/scroll-check.mjs <id>` and `node scripts/pages-check.mjs dist /journeys/`.
+3. `node scripts/journey-gate.mjs <id> --quick` — build, smoke and
+   `frame-check --look=32 --gate=ship` in one command. Loop here: it is the
+   cheap cycle, roughly two minutes, and it names the beat and the metric for
+   every failure. Fix every EMPTY / FLAT / SAME / FLANK-EMPTY / CLIPPED.
+4. **The blind review**, above. Iterate; expect several rounds.
+5. `node scripts/journey-gate.mjs <id>` — the full gate, adding scroll-check and
+   pages-check. Add `--sweep` if you touched anything in `src/archetypes` or
+   `src/engine`, because that is a change to all five journeys at once: a PBR
+   material change made for one journey silently cost `voyager` a third of its
+   occupancy, and it was found days later by accident.
+
+**A journey is complete when `journey-gate.mjs` exits 0 and the blind review
+agrees with the brief — at no other time, and on no other evidence, including
+your own reading of the screenshots.** If a defect exists that the gate cannot
+see, the fix is a new check in the gate, not a judgement call at the end of a
+long context.
 
 ## Traps that have cost real time
 

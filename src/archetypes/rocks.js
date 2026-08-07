@@ -94,6 +94,13 @@ export function rocks({
   centreClear = 0,
   offsetMeters = null,
   buryFraction = 0.3,        // fraction of each instance's own radius sunk below y=0
+  // Vertical scatter, metres. Zero — the default, and what every ground use
+  // wants — lays the instances on one plane, which is correct for rubble on a
+  // surface and wrong for anything FLOATING: an asteroid belt or a Kuiper-belt
+  // field seen from inside a single plane renders as a row of potatoes at one
+  // apparent size, however many instances it has. This is the one parameter
+  // that turns the scatter into a volume.
+  spreadYMeters = 0,
   angularity = 0.32,
   rock = 0x2c2a28,
   dry = 0x565048,
@@ -129,6 +136,7 @@ export function rocks({
     unit.push({
       x: Math.cos(th) * r,
       z: Math.sin(th) * r,
+      y: spreadYMeters ? (rand() * 2 - 1) * spreadYMeters : 0,
       radius: sizeMeters[0] + rand() * (sizeMeters[1] - sizeMeters[0]),
       squash: 0.65 + rand() * 0.4,
       rx: (rand() - 0.5) * 0.6,
@@ -163,7 +171,7 @@ export function rocks({
         s.set(rWorld, rWorld * it.squash, rWorld);
         p.set(
           rebase.toWorld(it.x),
-          rWorld * it.squash * (1 - buryFraction * 2),
+          rWorld * it.squash * (1 - buryFraction * 2) + rebase.toWorld(it.y),
           rebase.toWorld(it.z),
         );
         m.compose(p, q, s);

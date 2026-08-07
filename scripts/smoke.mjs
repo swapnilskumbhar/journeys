@@ -64,6 +64,66 @@ const EXTRA = {
     ok(firstSecond > 0.15, '  the first second gets real scroll', `${(firstSecond * 100).toFixed(0)}%`);
     ok(sinceKPg > 0.15, '  the age of mammals gets real scroll', `${(sinceKPg * 100).toFixed(0)}%`);
   },
+  // The mission clock. This journey's axis is DISTANCE, and elapsed.js is a
+  // second quantity derived from it — solved from Kepler's equation for the
+  // cruise, so it is exactly the kind of thing that can silently invert or go
+  // flat without any frame looking different. The readout and the film's
+  // narration both quote it.
+  'earth-to-mars': async (A) => {
+    const { elapsedAt, formatMissionTime, MISSION_SECONDS, CRUISE_SECONDS } =
+      await load('earth-to-mars', 'elapsed.js');
+    const { MARS_D, walked } = await load('earth-to-mars', 'distance.js');
+
+    const DAY = 86400;
+    ok(Math.abs(CRUISE_SECONDS / DAY - 258.8) < 0.5, '  Hohmann cruise is 258.8 days',
+      `${(CRUISE_SECONDS / DAY).toFixed(2)} d`);
+    ok(Math.abs(MISSION_SECONDS / DAY - 258.9) < 1, '  ignition to touchdown ≈ 259 days',
+      `${(MISSION_SECONDS / DAY).toFixed(2)} d`);
+
+    // Monotonic, densely. A clock that runs backwards anywhere is worse than
+    // no clock, and the seam between four hand-written legs and one solved
+    // one is where it would happen.
+    let mono = true, prev = -Infinity;
+    for (let i = 0; i <= 20000; i++) {
+      const t = elapsedAt(1 + (walked(95) - 1) * (i / 20000));
+      if (t < prev) mono = false;
+      prev = t;
+    }
+    ok(mono, '  the clock never runs backwards');
+
+    // THE FACT THE COPY ASSERTS. Beat 16 tells the reader the first half of
+    // the arc took 57 days of 225 — that is the whole point of solving Kepler
+    // rather than interpolating, and if a future edit flattens the cruise to a
+    // straight line this is the check that catches it.
+    const atEarthOrbit = elapsedAt(1.5e11) / DAY;
+    const atMarsOrbit = elapsedAt(5.0e11) / DAY;
+    ok(Math.abs(atEarthOrbit - 57) < 3, '  Earth\'s orbit crossed at ~57 days',
+      `${atEarthOrbit.toFixed(0)} d`);
+    ok(Math.abs(atMarsOrbit - 225) < 4, '  Mars\' orbit crossed at ~225 days',
+      `${atMarsOrbit.toFixed(0)} d`);
+    ok(atMarsOrbit - atEarthOrbit > 2 * atEarthOrbit,
+      '  the far half of the transfer takes far longer than the near half',
+      `${(atMarsOrbit - atEarthOrbit).toFixed(0)} d vs ${atEarthOrbit.toFixed(0)} d`);
+
+    // Seven minutes, and the register switch that makes it visible. Printed as
+    // time since ignition every EDL beat reads "T+259 days"; this is the check
+    // that the readout is still saying something.
+    const edl = (elapsedAt(MARS_D) - elapsedAt(MARS_D - 1.25e5));
+    ok(edl > 300 && edl < 420, '  entry interface to touchdown is under seven minutes',
+      `${edl.toFixed(0)} s`);
+    ok(formatMissionTime(MARS_D - 6e4).startsWith('E+'), '  descent counts from entry',
+      formatMissionTime(MARS_D - 6e4));
+    ok(formatMissionTime(walked(9)).startsWith('L+'), '  the surface counts from landing',
+      formatMissionTime(walked(9)));
+
+    // The readout sits beside the scrub track, which has a min-width and no
+    // max-width — a string that swings wide narrows the track visibly. This is
+    // the crust-to-core lesson as a check rather than a comment.
+    let widest = 0;
+    for (let i = 0; i <= 2000; i++) widest = Math.max(widest, A.format(i / 2000).length);
+    ok(widest <= 40, '  the readout stays narrow enough not to squeeze the track',
+      `${widest} chars`);
+  },
   'earth-to-moon': (A) => {
     // The two claims the segmented distance axis is FOR. A pure log axis gives
     // the ascent 62% of the page and the lunar arrival about one pixel; if
@@ -108,7 +168,7 @@ for (const id of ids) {
   }
   ok(seams, '  every segment boundary round-trips');
 
-  EXTRA[id]?.(A);
+  await EXTRA[id]?.(A);
 
   // --- beat placement -----------------------------------------------------
   console.log('# beat placement');
@@ -153,6 +213,74 @@ for (const id of ids) {
     );
   });
   console.log(`  total ${length}vh · ${beats.length} beats · mean ${(length / beats.length).toFixed(2)}vh`);
+}
+
+// --- films -----------------------------------------------------------------
+// Any journey carrying a film.js gets its timeline solved here, with synthetic
+// narration timings. Browser-free and instant, which is the whole point: the
+// alternative is finding out that u(t) walks backwards twenty minutes into a
+// six-thousand-frame render.
+for (const id of ids) {
+  const filmPath = join(root, id, 'film.js');
+  if (!existsSync(filmPath)) continue;
+
+  console.log(`\n=== ${id} · film ===`);
+  const film = (await import(pathToFileURL(filmPath).href)).default;
+  const { solve, makeCurve, beatMarks } = await import(pathToFileURL(resolve('scripts/film/solve-timeline.mjs')).href);
+  const marks = await beatMarks(id);
+
+  // Synthetic timings at a plausible speaking rate. The exact numbers do not
+  // matter — what is being checked is the SHAPE the solver produces from any
+  // valid alignment.
+  const timings = {};
+  let t = 0;
+  film.shots.forEach((s, i) => {
+    if (!s.narration) return;
+    const secs = Math.max(1.5, s.narration.trim().split(/\s+/).length / 2.6);
+    timings[i] = { start: +t.toFixed(3), end: +(t + secs).toFixed(3) };
+    t += secs + 0.45;
+  });
+
+  let timeline = null;
+  try {
+    timeline = solve({ id, marks, film, timings, fps: 24 });
+    ok(true, '  timeline solves');
+  } catch (err) {
+    ok(false, '  timeline solves', err.message);
+  }
+
+  if (timeline) {
+    const curve = makeCurve(timeline);
+    let back = 0, prev = -Infinity;
+    for (let s = 0; s <= timeline.duration; s += 0.05) {
+      const u = curve(s);
+      if (u < prev - 1e-9) back = Math.max(back, prev - u);
+      prev = u;
+    }
+    ok(back <= 1e-9, '  u(t) never goes backwards', back ? `worst ${back.toFixed(6)}` : '');
+    ok(curve(0) <= 0.01, '  opens at the start of the journey', `u=${curve(0).toFixed(4)}`);
+    ok(curve(timeline.duration) >= 0.995, '  closes at the end', `u=${curve(timeline.duration).toFixed(4)}`);
+
+    const short = timeline.shots.filter((s) => s.end - s.start <= s.travel + 0.2);
+    ok(short.length === 0, '  every shot has hold left after its transit',
+      short.length ? `${short.length} too short, first is shot ${short[0].i}` : '');
+
+    // Acts must tile the film: the score is generated per act, and a gap
+    // between two of them is a silence the mixer will not fill.
+    if (timeline.acts.length) {
+      let tiled = Math.abs(timeline.acts[0].start - timeline.shots[0].start) < 0.5;
+      for (let k = 1; k < timeline.acts.length; k++) {
+        if (Math.abs(timeline.acts[k].start - timeline.acts[k - 1].end) > 0.5) tiled = false;
+      }
+      ok(tiled, '  acts tile the film with no gaps', `${timeline.acts.length} acts`);
+    }
+
+    const mins = Math.floor(timeline.duration / 60);
+    console.log(
+      `  ${timeline.shots.length} shots · ${mins}m${String(Math.round(timeline.duration % 60)).padStart(2, '0')}s · ` +
+      `${timeline.frames} frames · ${timeline.acts.length} acts · ${timeline.segments.length} audio segment(s)`,
+    );
+  }
 }
 
 console.log(`\n${failures === 0 ? 'SMOKE PASS' : `SMOKE FAIL (${failures})`}`);

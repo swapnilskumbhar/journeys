@@ -16,6 +16,26 @@ of the Earth.
 
 ## Commands (Windows — call node by absolute path; shell cwd drifts)
 
+- **Is a journey done?** — `node scripts/journey-gate.mjs <id> [--quick]
+  [--sweep]`. One command, one verdict, and **the only definition of
+  "complete"**. Runs build → smoke → `frame-check --look=32 --gate=ship` →
+  scroll-check → pages-check, cheapest-first, stopping at the first failure, and
+  starts its own dev server if none is answering. `--quick` is the two-minute
+  numeric loop (build + smoke + frame-check) for iterating on one beat;
+  `--sweep` re-checks every OTHER journey afterwards, which is mandatory when
+  anything under `src/archetypes` or `src/engine` changed. A journey is complete
+  when this exits 0 and at no other time — see the pipeline lesson below for
+  what it cost to learn that.
+- **Is a FILM done?** — `node scripts/film-gate.mjs <id>`, and the pipeline that
+  produces one is `node scripts/film.mjs <id> [--dry-run] [--rewrite]
+  [--from=<stage>]`. One journey in, one narrated, scored, captioned mp4 out:
+  preflight → director → voice → timeline → score/sfx → render → assemble →
+  gate, cheapest-first, stopping at the first failure. **`--dry-run` makes zero
+  paid API calls** — stub narration at a measured speaking rate, silent score,
+  6 fps at 320×180 — and still exercises the solver, renderer, mixer and gate,
+  so a pipeline change is debuggable for free. `--from=render` after editing
+  camera drift, `--from=assemble` after changing captions or the mix. See the
+  film section below.
 - Dev: `& "C:\Program Files\nodejs\node.exe" node_modules/vite/bin/vite.js --port 5175`
 - Build (run before calling any change done — the dev server masks
   duplicate-identifier errors as a blank page with no console output):
@@ -38,9 +58,50 @@ of the Earth.
   into a journey.
 - Screenshots — the only reliable way to SEE a journey (the Browser pane is
   compositor-throttled and its screenshots time out):
-  `node scripts/shots.mjs <id> [outDir] [port] [--at=0.1,0.5] [--sheet]`.
-  Default is one shot per beat, sampled mid-beat; `--sheet` emits
-  `contact-sheet.png` (one image = whole-journey review).
+  `node scripts/shots.mjs <id> [outDir] [port] [--at=0.1,0.5] [--sheet]
+  [--blind]`. Default is one shot per beat, sampled mid-beat; `--sheet` emits
+  `contact-sheet.png` (one image = whole-journey review). **`--blind` hides the
+  copy panel, ribbon and hero, and names the files `beat-01.png` rather than
+  `09-io-s-volcanoes.png`** — the index→heading key goes to a sibling file
+  OUTSIDE the frames directory, so the directory can be handed to a reviewer
+  with nothing in it that says what the frames are meant to be. Blindness that
+  depends on the reviewer choosing not to open a file is not blindness.
+- Was it designed, or typed? — `node scripts/design-lint.mjs [id …]`. Checks
+  `DESIGN.md` carries a complete **beat sheet** (`# | heading | midpoint |
+  archetypes | px | hue`), that its headings still match `beats.js` in order,
+  and that the **density budget** holds. It found `earth-to-moon`'s brief had
+  silently drifted three beats out of step with its build.
+- **What is wrong with it, and what would fix it?** —
+  `node scripts/critique.mjs <id> [--beats=3,7-9] [--focus="…"] [--src=a.js,b.js]
+  [--via=terra|agent] [--effort=] [--max-usd=] [--diff] [--brief]`. One bounded
+  `gpt-5.6-terra` call that sees the rendered frames **and** the source that
+  drew them, returning schema'd findings with an `archetypeGap` flag and a fix
+  naming the file and the symbol. `--brief` writes a self-contained instruction
+  for `journey-builder`. This is the INFORMED review and it is deliberately not
+  `review.mjs` — see the pairing below.
+- **Make the object right** — `node scripts/model.mjs <id> --files=a.js,b.js
+  [--reference=REFERENCE.md] [--beats=21-24] [--focus="…"] [--model=gpt-5.6-sol]
+  [--rounds=3] [--effort=high] [--max-usd=] [--gate] [--dry-run]`. The third
+  tool and **the only one that writes**: it looks at frames, edits the source
+  that drew them, rebuilds, and looks again. `review` describes, `critique`
+  prescribes, `model` fixes. Creation stays agent-backed for a JOURNEY — that
+  is an edit → gate → read-failure → edit loop over the whole thing — but an
+  archetype's quality is visible in one frame, so the loop is small enough to be
+  a script. Round 2 is the first time it sees its own work rendered and that is
+  where most of the quality arrives. Scope is the operator's: only `--files`
+  may be written, a new file is created and deleted again if the build ends
+  broken, and `--reference` is READ-ONLY. Use it for MODELS; staging, pacing and
+  beat selection need the whole journey in view and stay with the agent.
+- Does the picture show what the copy claims? — `node scripts/review.mjs <id>
+  [--film] [--via=terra|agent] [--diff]`. The BLIND review: frames only, no
+  captions, no source. **Keep these two apart.** Blindness is what makes
+  `review.mjs` trustworthy — you cannot un-see a heading — but "how do I fix
+  this" is unanswerable blind, because the fix nearly always lives in a line of
+  source no frame can show you. `voyager`'s finding was not "the dish looks
+  wrong", it was "`tower` is being used as a magnetometer boom and `capsule` as
+  a payload, so the silhouette is a lamp by construction" — visible only by
+  reading the frame against `layers.js`. One merged tool that sometimes sees the
+  source would silently forfeit the blindness guarantee.
 - Deployed URL shape — `node scripts/pages-check.mjs dist /journeys/`, after a
   build. Serves `dist` with GitHub Pages' actual rules (exact file, directory
   index, 301 on a missing trailing slash, `404.html` with a 404 status) and
@@ -70,11 +131,19 @@ of the Earth.
 | src/engine/journey.js | `defineJourney` + registry glob (eager meta.js, lazy index.js) |
 | src/engine/player.js | scroll → u → camera + layers + one swapped copy panel |
 | src/engine/ribbon.js | left→right progress HUD, doubles as navigation |
-| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette, panel, water, blob, vehicle, trajectory, rocks, strata, **tower, cloudDeck** |
+| src/archetypes/ | **the reusable visual vocabulary** — particleField, glowSphere, filaments, planet, terrain, blocks, backdrop, silhouette, panel, water, blob, vehicle, trajectory, rocks, strata, tower, cloudDeck, **instrumentedProbe** |
+| src/archetypes/instrumented-probe.js | a deep-space probe: parabolic dish with feed and struts, equipment bus, booms in independent directions, `deploy` for launching folded |
 | src/kit/camrig.js | `aimCamera(cam, {pos, azimuthDeg, lookAt, pan, rollDeg})` — shared camera-aiming helper; `rollDeg` decides where the travel axis lands on screen |
 | src/kit/ | procedural toolkit ported from howitworks (shared by copy) |
-| src/journeys/\<id\>/ | meta.js · axis-def.js · beats.js · layers.js · curve.js · index.js |
-| scripts/ | smoke.mjs · shots.mjs · scroll-check.mjs · **frame-check.mjs** · video export (**export-video/narration still need retargeting to `__u`**) |
+| src/journeys/\<id\>/ | meta.js · axis-def.js · beats.js · layers.js · curve.js · index.js · **film.js** (editorial layer, only where a film exists) |
+| scripts/ | **journey-gate.mjs** (the verdict) · smoke.mjs · shots.mjs · scroll-check.mjs · **frame-check.mjs** · **design-lint.mjs** · **critique.mjs** (informed) · **review.mjs** (blind) |
+| scripts/film/lib/critic.mjs | the INFORMED reviewer — frames + source, prescriptive, schema'd |
+| scripts/film/lib/reviewer.mjs | the BLIND reviewer — frames only, descriptive, schema'd |
+| scripts/lib/frame-metrics.mjs | the RULER — occupancy/contrast/clip/signature, shared by frame-check and film-gate so a film cannot pass a bar the journey failed |
+| scripts/film.mjs · film-gate.mjs · film-shots.mjs | make the film · the film's verdict · sample a master for blind review |
+| scripts/film/ | write-script (gpt-5.6-terra, the director) · make-voice · make-score · make-sfx · solve-timeline (the u(t) curve) · render-frames · assemble |
+| .claude/agents/ | **journey-builder** (opus, builds against the gate) · **journey-blind-reviewer** (sonnet, Read+Glob only, never sees the brief) · **journey-film** (opus, films against the film gate) |
+| .claude/skills/ | **journey-craft** (the craft) · **journey-new** (build a journey) · **journey-film** (film one) · **journey-fix** (repair one that ships and still looks wrong) |
 
 ## Rules
 
@@ -149,9 +218,15 @@ of the Earth.
 - **`earth-to-mars`** — 28 beats, 64 vh, a Hohmann-class transfer with a
   shrinking, dimming Sun as its own first-class subject through the empty
   cruise, ending on rust-coloured ground with foreground boulders (`rocks`).
-- **`voyager`** — 32 beats, 82 vh, the real 1977 Grand Tour: four giant-planet
-  encounters bought with gravity assists, the Pale Blue Dot, the heliopause,
-  and an honest closing statement about the distance to Proxima Centauri.
+- **`voyager`** — **22 beats** (ten were cut: each was a caption over the same
+  picture), the real 1977 Grand Tour: separation and boom deployment above a
+  receding Earth, four giant-planet encounters bought with gravity assists, the
+  Pale Blue Dot, the heliopause, the Golden Record, and an honest closing
+  statement about the distance to Proxima Centauri. **The spacecraft is on
+  screen in all 22 beats** — a persistent near-foreground escort placed from the
+  camera's own basis, standing down only where a beat stages the craft as its
+  subject. Gate: occupancy 0.604, contrast 0.186, adjacent 13.1, 0/22 flagged —
+  the highest mean occupancy of any journey here.
 - **`crust-to-core`** — 27 beats, 68 vh, a straight-down descent from a blade
   of grass to the centre of the Earth: topsoil → the deepest mine and the
   deepest borehole humans have made → the Mohorovičić discontinuity →
@@ -160,10 +235,62 @@ of the Earth.
   the planet's own magnetic dynamo → a solid inner core at the Sun's surface
   temperature, held solid by pressure alone.
 
-Fifteen archetypes (particleField, glowSphere, filaments, planet, terrain,
-blocks, backdrop, silhouette, panel, water, blob, **vehicle, trajectory,
-rocks, strata**) cover all of it with no bespoke Three.js in any journey
-folder.
+Sixteen archetypes (particleField, glowSphere, filaments, planet, terrain,
+blocks, backdrop, silhouette, panel, water, blob, vehicle, trajectory,
+rocks, strata, **instrumentedProbe**) cover all of it with no bespoke Three.js
+in any journey folder.
+
+**Two films ship:** `renders/big-bang/final.mp4` (8m47s) and
+`renders/voyager/final.mp4` (5m43s, gate pass, 0/22 shots flagged, blind review
+0 high-severity).
+
+## The build pipeline (2026-07-31)
+
+Adding a journey is now one request — the `journey-new` skill runs design brief
+→ `journey-builder` agent → gate → blind review → fix rounds, and reports once.
+The lessons that shaped it, which are really one lesson four times:
+
+- **A defect no check can see is a defect that ships.** Four journeys were built
+  by four agents in a batch. All four built clean, printed `SMOKE PASS`, passed
+  `scroll-check`, and were reported complete with "screenshots looked at". One
+  was the same white sticker on black in 30 of its 32 beats. Nothing in that
+  batch was dishonest; the agents ran everything they had been given and none of
+  it could see the picture. `journey-gate.mjs` exists so that "done" is an exit
+  code rather than an opinion formed at the end of a long context.
+- **Under-building, not bad taste, is what actually went wrong.** Lines of
+  `layers.js` per beat predicts journey quality better than any other measure
+  taken here: big-bang 56 → 0.522 occupancy, earth-to-moon 36 → 0.451,
+  earth-to-mars 20 → 0.372, voyager 13 → 0.032, crust-to-core 12 → 0.066. A beat
+  needs three planes; one archetype cannot be three planes, so a thin
+  `layers.js` produces the "object floating in void" failure by construction,
+  before any compositional decision is made. `design-lint.mjs` fails under 25
+  lines/beat.
+- **A reviewer who can read the caption is not a reviewer.** You cannot un-see a
+  heading: read "Io's volcanoes", look at a black frame with a dot in it, and
+  your brain supplies the volcano. `shots.mjs --blind` removes the panel AND the
+  filenames AND the axis readout, and the review runs as a separate agent with
+  `Read`/`Glob` only, given nothing but a directory of `beat-NN.png`. Restricting
+  what the reviewer *can* know is the mechanism; asking it to be objective is
+  not.
+- **A cold agent per round recreates the original failure once per round.** The
+  builder is continued with `SendMessage` across review rounds, never
+  re-spawned — a fresh one re-derives the engine from `CLAUDE.md` and
+  under-builds exactly the way the first batch did.
+- **Three rounds, then stop and ask.** Past three, the problem is almost always
+  beat SELECTION, which is a design decision and needs the user — not another
+  round of tuning numbers.
+- **The per-beat floors were never going to be enough.** `frame-check` gated
+  each beat against floors so low that `voyager`, at 0.026 mean occupancy,
+  nearly cleared them. `--gate=ship` adds the journey-level bar — occupancy
+  ≥ 0.25, contrast ≥ 0.06, adjacent ≥ 6.0, flagged ≤ 15% — calibrated against
+  big-bang's 0.522/0.149/13.9/13%. Per-beat floors catch broken frames; only the
+  journey bar catches a journey that is uniformly not worth scrolling.
+- **`class` is not hoisted the way `function` is.** `journey-gate.mjs` caught a
+  `StageFailure` declared below the try/catch that used it, which would have
+  turned every gate failure into a ReferenceError — the same trap that already
+  cost `frame-check.mjs` a `const mean` used before its initialiser. In a script
+  whose whole job is reporting failure honestly, the failure path is the one
+  that must not itself be broken.
 
 Rendering and composition lessons, the current pass (`earth-to-moon` rework):
 
@@ -469,6 +596,359 @@ Things the first journey taught, which the next one should not relearn:
   happily pass while scrolling is broken; `scroll-check.mjs` caught an
   unreachable final beat and off-by-one ribbon navigation.
 
+## The film pipeline (2026-08-04)
+
+`node scripts/film.mjs <id>` turns a journey into a narrated, scored,
+captioned mp4. The pictures come from the journey itself, rendered frame by
+frame — **nothing is generated as video**. This is what rule 8 was for:
+`player.js` reads `__u`, `stage.js` reads `__vt`, the camera is handed no clock,
+so frame N is a pure function of N and a re-render tomorrow is byte-identical.
+`gpt-5.6-terra` is the DIRECTOR, not a video model: it is shown one unoccluded
+frame per beat and writes narration to what is actually on screen.
+
+- **`u(t)` replaces the fly-to, and it must never stop.** `howitworks` had
+  discrete steps and flew the camera between them; a journey has one continuous
+  scalar, so the exporter is simpler. But the naive version — jump to the beat,
+  hold — is a frozen frame for ten seconds in a piece whose subject is
+  travelling. Each shot is a smoothstep TRANSIT into 15% of the beat's own axis
+  span, then a slow linear DWELL drift to 80% of it. Mid-dwell lands near the
+  0.45 point `shots.mjs` and `frame-check.mjs` already sample, so the frame the
+  still gate blessed is the frame the film shows.
+- **A frame can be perfectly composed and completely frozen, and no still check
+  in this repo can see it.** `frame-check` scores instants; a shot has a
+  duration. Six of `voyager`'s 22 shots — the deep cruises, the heliopause, the
+  closing star — measured 0.1–0.4 on the film gate's `motion` metric while
+  scoring 0.30–0.76 occupancy. Their pictures are fine and they do not change,
+  because the scale law holds the subject at a constant apparent size and there
+  is nothing else in frame. The fix is an authored **look drift**
+  (`look: { from: { yaw: -12 }, to: { yaw: 12 } }`), which rule 8 explicitly
+  permits — `look` is a second INPUT axis, and in deterministic mode it is
+  authored rather than dragged. Measured: those six went to 1.1–6.7, and their
+  occupancy rose too, because turning reveals more world.
+- **Pacing is word count. There is deliberately no seconds knob.** A shot lasts
+  exactly as long as its line takes to say, measured from the real ElevenLabs
+  alignment. A stretch knob would either insert a silent hole mid-sentence or
+  desynchronise everything after it. The one exception is a WORDLESS shot,
+  which inserts real silence and cuts the single take into segments around it —
+  a seam where silence was wanted anyway costs nothing; a seam between two
+  words costs the continuity that made it a single take.
+- **Verify an API's shape before building on it; twice here the docs were
+  wrong.** The published `gpt-5.6-terra` page rendered an example with an
+  `api.anthropic.com` host. ElevenLabs' composition-plan endpoint is
+  `/v1/music/plan`, not the documented `/v1/music/composition_plan`, and its
+  response is `{positive_global_styles, negative_global_styles, sections[]}`,
+  not the documented `chunks[]`. Worst of the three: **a composition plan is
+  only accepted by `music_v1`** — posting one with `model_id: music_v2` fails
+  422. So v2 sounds better and cannot be sectioned, v1 lets you say where the
+  music changes. The plan path is the default, because a score whose sections
+  land on the journey's own acts is the entire reason to score a journey rather
+  than lay a loop under it.
+- **Node's `fetch` gives up at 300 seconds, and that timer starts at the first
+  byte UPLOADED.** Two director runs died with a bare `fetch failed` — no
+  status, no body, nothing to tell it apart from a network fault. The first
+  diagnosis was the obvious one, that a high-effort reasoning call thinks for
+  minutes before emitting a token, and the fix for that is real: the Responses
+  API's `background: true` plus polling `GET /v1/responses/{id}`, so every
+  individual request is short. (Streaming does NOT fix that: undici's body
+  timeout applies between chunks and a reasoning model sends nothing until it
+  has finished thinking.) But it did not fix the failure, because the failure
+  was in the POST, not the wait. `shots.mjs` captures 1440×900 PNGs at ~1.8 MB
+  each, and thirty-nine of them is a **35 MB request body** — the upload alone
+  outran undici's headers timeout. Frames are now downscaled to 768px JPEG
+  before sending: 35.2 MB → 2.86 MB, and nothing is lost, because the vision
+  encoder tiles and downsamples anyway (a full-size frame billed 1,630 input
+  tokens, the same order as a small one). **A timeout on a request carrying
+  images is a payload-size symptom until proven otherwise** — measure the body
+  before theorising about the model.
+- **A reasoning model's empty answer is well-formed.** Reasoning tokens come out
+  of the same budget as the output, so a model that thinks hard and gets cut off
+  returns `status: "incomplete"` with a valid response object and no message in
+  it. Reading `output[0].content` is doubly wrong: the reasoning item comes
+  FIRST, so even a good reply has no content at index 0. Find the item whose
+  `type` is `message`, and treat `incomplete` as an error — otherwise a
+  truncation surfaces days later as "the director wrote no shots".
+- **A generated score arrives MASTERED, so no fixed multiplier can place it.**
+  big-bang's came back at -13 dB mean with -1.3 dB peaks — commercial release
+  level. The first mix multiplied it by a flat 0.55 and the music sat on the
+  narrator's head. Worse, the score had its own arc: -18.8 dB for its first
+  thirty seconds, -14 dB from then on, so the bed audibly swelled a minute in
+  and never came back. Both tracks are now MEASURED and the gain to reach a
+  target is computed per film (music -30 LUFS, voice -16), with `acompressor`
+  at 200/1200 ms flattening what remains of the score's internal arc. Fixed
+  gain, deliberately not single-pass `loudnorm`, which is dynamic and would
+  reintroduce the very moving level being removed. A -4 dB scoop at 1.8 kHz
+  keeps the music out of the band speech needs.
+- **A score with CHOIR in it makes the narration sound broken, not just loud.**
+  big-bang's came back full of "distant choir textures" and "weightless choir"
+  — voices under a narrator, competing for the same band. The obvious fix is
+  the wrong one: `force_instrumental` works on the prompt path and fails 422 on
+  the plan path, **"`force_instrumental` can only be used with `prompt`"**. On
+  the plan path the only lever is the plan itself — strip voice terms from the
+  global AND local style lists (the planner reaches for choir on any cosmic
+  brief, and a global negative does not reach the local styles where it puts
+  them), add every voice term to the negatives, and keep `lines: []`.
+- **A static limiter after a dynamic normaliser cannot win; use two-pass
+  loudnorm.** Three attempts at the final mix, and the first two are the
+  instructive ones. Single-pass `loudnorm` hits -14 LUFS but its true-peak
+  ceiling is advisory — asked for -1.5, delivered -0.3. Adding `alimiter` after
+  it enforced the ceiling and then fought the normaliser that had just run,
+  pulling 3.7 dB back off and landing the mix at -17.7 LUFS. (Two smaller traps
+  live in that attempt too: `alimiter` limits SAMPLE peaks while the gate
+  measures TRUE peak, and inter-sample overshoot was ~1.2 dB here; and
+  `level=disabled` is required or alimiter helpfully re-normalises and undoes
+  the loudness match.) The tool built for this is loudnorm's two-pass mode:
+  pass one measures, pass two applies a single LINEAR gain with the measured
+  values supplied, hitting the integrated target exactly and respecting true
+  peak with no dynamics applied to the finished mix at all. Guard the handoff —
+  loudnorm reports `-inf` for silence, and feeding that into pass two produces
+  no audio, which a dry run will hit every time.
+- **Measuring the duck on the final mix reports a working duck as broken.**
+  During speech the voice dominates, so the mix gets LOUDER exactly where the
+  music got quieter. The ducked score is rendered separately, for no other
+  purpose than letting the gate measure its level inside speech windows versus
+  between them.
+- **CSS animation and transition run on the real clock, not the virtual one.**
+  Any left enabled makes a frame depend on how long the page has been open,
+  which is precisely the defect rule 8 exists against. The renderer disables all
+  of it unconditionally — which also removes the copy panel's entrance stutter
+  that made `--chrome=full` unusable.
+- **`class` and `let` are still not hoisted, and this cost a third script.**
+  `film.mjs`'s `let skipNote` sat in the plumbing section below the try/catch
+  that read it, so the first stage threw "Cannot access before initialization"
+  instead of running. Same trap as `frame-check.mjs`'s `const mean` and
+  `journey-gate.mjs`'s `class StageFailure`. In anything whose job is reporting
+  failure honestly, the failure path is the one that must not itself be broken —
+  and `film-gate.mjs`'s missing-artefact exit calls `finish()` before the
+  picture stage has run, so everything `finish()` reads is declared above it.
+- **Units are facts, money is an estimate, and the two must not be blurred.**
+  `scripts/film/lib/ledger.mjs` records every paid call and writes
+  `renders/<id>/cost.json`. Token counts, characters, seconds and call counts
+  come from the actual requests and responses, so they are exact; dollars are
+  those units times a rate table, and each rate is marked verified or assumed
+  with anything derived from an assumed rate flagged `*` in the output. The
+  honest reason it works this way: **the balance cannot be read.** ElevenLabs
+  exposes the exact credit count at `/v1/user/subscription`, but this repo's
+  key is scoped without `user_read` and gets a 401 — grant that scope and the
+  ElevenLabs figures become ground truth instead of arithmetic. The ledger
+  prints on FAILURE as well as success, because a run that dies at the render
+  stage has still paid for its director and its voice. `--max-usd` stops the
+  run before the next paid stage rather than after it. **Record a line AFTER
+  the call succeeds, not before it** — the music entry was written up front and
+  a compose that failed 422 still showed $2 of music in the ledger, a bill for
+  something never delivered. The exception is the TTS character count, which is
+  billed on submission whether or not the response arrives.
+- **A whole film is about six billed calls.** One director call (plus unbilled
+  status polls), one TTS call for the entire narration, two for the score
+  (plan, then compose), and one per distinct sound effect — sfx are cached by
+  name, so a re-run pays nothing for cues that did not change. The render is
+  free; it is local GPU time. That shape is why the pipeline is cheap to
+  iterate on and why `--from=<stage>` matters: re-rendering costs minutes and
+  nothing else.
+- **One filter input, used twice, needs `asplit`.** ffmpeg's parser accepts
+  `[1:a]` on two chains without complaint and then produces silence on every
+  branch after the first.
+
+## The protagonist, and the departure (2026-08-05, `voyager` rework)
+
+A journey named after a spacecraft shipped with a spacecraft in **5 of its 22
+beats**, and the one beat that drew it large drew a table lamp. Everything below
+came out of fixing that, and most of it generalises.
+
+- **The gate cannot see whether a thing looks like the thing.** `frame-check`
+  measures occupancy, contrast and adjacent distance: it tells you a frame is
+  not empty, not black and not a copy of its neighbour. `voyager`'s craft scored
+  0.42 occupancy and passed every numeric bar in the repo while rendering as a
+  white bowl, a gold ball and a spike. That gap is why `critique.mjs` exists —
+  a model with eyes finds it, an agent with tools fixes it, the gate proves
+  nothing else broke.
+- **`vehicle` is an axial launch-stack generator, and a deep-space probe is not
+  a stack.** Every primary mass in `vehicle` builds bottom-to-top on local y and
+  its dish is a bare sphere cap on that same axis. `layers.js` had pressed
+  `capsule` into service as a payload and `tower` as a magnetometer boom — and
+  that substitution IS the lamp: white bowl, gold ball, tapered base, one spike.
+  No parameter could have fixed it, because the defect was the axis.
+  `instrumentedProbe` is the general answer and serves Galileo, Cassini,
+  Pioneer and New Horizons too. **The tell, before you spend a round tuning:
+  cover the caption and ask a stranger to name the object.** "Some vertical
+  bars" or "a table lamp" is an archetype gap.
+- **What makes a dish read as an antenna is the STRUTS.** A paraboloid
+  (`LatheGeometry` from `z = depth·(r/R)²`, not a sphere cap) with a thick rim,
+  a feed horn standing off the vertex on a real focal length, and a tripod
+  holding it there. The struts break the silhouette into something nameable.
+  And asymmetry is the whole difference between a probe and a lamp: booms
+  leaving the bus in three different directions, one of them very long and very
+  thin.
+- **A probe launches FOLDED.** Booms stow against the bus inside the shroud and
+  extend after separation. Building them straight into the shared group welds
+  the craft permanently open and the beat where it unfolds cannot exist —
+  `instrumentedProbe`'s `deploy` needs each boom in its own group pivoted at its
+  root, which is a structural decision, not a parameter.
+- **THE PROTAGONIST HAS TO BE ON SCREEN.** Five of 22 beats is a slideshow of
+  planets that happen to be in the right order. Every appearance was its own
+  windowed layer, so the craft blinked in and out and the gaps between windows
+  were most of the journey — and the five appearances were at five different
+  sizes in four different corners, so even where it WAS present there was
+  nothing to track. One continuous presence, same corner, same size, fixes both.
+- **A fixed WORLD offset does not hold a fixed SCREEN position.** `azimuthAt`
+  swings this camera 44° across the journey, so an authored offset slides right
+  out of frame. `screenAnchoredMeters` in `plan.js` rebuilds the exact basis
+  `aimCamera` constructs from the same four tables `index.js` feeds it, and
+  returns a world position for a camera-space `{right, up, ahead}`. One formula,
+  not two that have to agree. It also fixed the booster, which had been cropped
+  at the frame edge for as long as the journey existed.
+- **A persistent near-foreground object must not read as a sticker.** Three
+  things keep it a real object: a true distance in front of the lens so it
+  parallaxes against what it passes, the same light vector as every world in the
+  journey, and an attitude that is a slow function of `u`. All pure functions of
+  `u` — rule 8 intact, and it measurably RAISES occupancy because a turning
+  object reveals more.
+- **A mute is a promise that something better is taking over.** The escort stood
+  down for seven "hero" shots — but two of them drew the craft at 0.045 and
+  0.075 of the frame, 25 and 40 px, while suppressing a 140 px escort. Trading a
+  legible spacecraft for an invisible one. Both layers deleted.
+- **A layer's MOUNT RANGE silently overrides every opacity envelope you write.**
+  `L('earth', 1.0, 1.02, …)` — 1.02 AU is three million kilometres — hard
+  unmounted the planet the reader was leaving, and no fade could have saved it.
+  When a layer vanishes and its opacity looks right, check the range first.
+- **Gating visibility on FRAME WIDTH breaks wherever the frame law moves
+  sharply.** Earth gated on `frames(rebase, 2.0e6, 9.0e8)` while the FRAME table
+  ran 5.2e12 → 1.5e7 → 1.0e11, so the gate could only ever be open in a thin
+  slice in the middle. Measured: Earth absent at 4,655 km, absent at 6,410 km,
+  suddenly huge at 8,758 km, gone by 1.18 AU. A journey whose second beat is
+  called "Leaving Earth" never showed Earth getting smaller.
+- **Hold the frame across a beat — EXCEPT when the subject is not at the
+  origin.** Everywhere else in this table a flat pair of anchors is correct.
+  For a body receding behind you, a held frame plus a receding planet is the one
+  case where holding does the job, and the departure needed the frame to WIDEN
+  faster than the ship recedes so Earth shrinks every frame.
+- **Check whether an axis quantity is an altitude or a centre distance.**
+  `fromEarth(m) = (AU + m)/AU` and the ribbon prints `m` as "km from Earth" — an
+  altitude — while the Earth layer placed the planet's CENTRE at `m`. They
+  disagree by one planetary radius, and since beat 1 held to 6,000 km inside a
+  6,371 km planet, **the journey opened with the camera underground.** A sphere
+  with front-face culling seen from inside draws nothing, which is exactly what
+  the first three departure samples showed.
+- **Two objects that have just come apart are ONE event.** Staging them as two
+  independent placements is what made the departure read as two stickers: the
+  spent stage at one fixed screen spot, the spacecraft at another, neither
+  moving relative to the other, so nothing said they had ever been attached.
+  `separationFormation` returns both from one derivation — one centroid, one
+  tangent, one gap that **starts at zero** and grows. Coincident at the start is
+  what "still attached" means.
+- **Discarded hardware tumbles.** A spent stage holding a rigid attitude reads
+  as a second working spacecraft flying in formation.
+- **A trajectory line and the craft on it must come from one formula.** The path
+  was drawn in world space from its own shape while the craft was placed by
+  screen anchoring — two derivations with no reason to meet, and they did not.
+  `voyagerPositionMeters` is now the single answer to "where is Voyager", and
+  `departure-path` is translated so its own progress point lands there.
+  `trajectory` builds geometry once and only translates it, so the path cannot
+  be re-shaped per frame — but it can be moved, and moving it is enough.
+  **Residual, named honestly:** once the craft is off the origin for
+  visibility, the Earth→craft direction and the escape tangent are no longer
+  the same vector, so the line's tail does not pass exactly through Earth. That
+  is the price of a screen-anchored protagonist, not a bug to tune away.
+- **A declared parameter is not an implemented one.** `vehicle` declares `fins`
+  and never reads it — no fin-building code exists — and this file previously
+  documented fins as a fix that had been applied. The booster carried a
+  `fins: {…}` config that drew nothing for as long as the journey existed.
+- **Key an event's envelope to the EVENT, not to a round number on the axis.**
+  The booster's plume throttle held full until `1.00009 AU`, which is 13,500 km,
+  so the beat showed an engine firing four hundred kilometres of altitude after
+  the propellant was gone. Write the conversions in the source: `400 km =
+  1.0000027 AU` is unreadable otherwise, and unreadable numbers do not get
+  checked.
+- **Over-correction is its own defect.** Having found a deployed spacecraft
+  flying beside its own burning booster, the first fix suppressed the craft
+  through the entire ascent — equally wrong, because by 14,000 km it had
+  separated and its booms were going out. The honest boundary was BURNOUT, not
+  altitude.
+- **The Browser pane cannot drive this app.** rAF is throttled there, so the
+  streamer never mounts a layer and a scene traverse returns nothing — two
+  separate debugging attempts died on it. Use `shots.mjs` and read the PNGs.
+- **`command | tail` reports tail's exit code.** A gate piped for readability
+  will look like it passed. Read the verdict in the text.
+
+## Terra as the second model (2026-08-05)
+
+`gpt-5.6-terra` now does three jobs here, and the pattern is the same each time:
+**one bounded call with a strict schema, in place of an unbounded agent
+transcript.** Every AI step offers `--via=terra|agent`.
+
+- **Bounded beats cheap.** A subagent review is images entering a context,
+  reasoning across many turns, the whole context re-sent each turn, and a bill
+  you cannot know in advance. Measured: a schema'd critique of 5 frames and 2
+  source files at high effort is $0.137 and returns a complete new archetype
+  API.
+- **Blindness becomes ENFORCED rather than requested.** With a subagent you are
+  trusting it not to open the key file sitting beside the frames. An API call
+  simply does not contain one. This repo's rule is that restricting what the
+  reviewer CAN know is the mechanism and asking it to be objective is not — an
+  API call is the stronger form of that rule.
+- **Findings become diffable.** After a fix round, "gone" and "not mentioned
+  this time" are indistinguishable in prose and completely different facts.
+  `--diff` answers it against a stable schema. Watch `introduced` too: a rework
+  that trades one high finding for two mediums has not helped.
+- **Keep the agent path.** An agent can follow up on its own suspicion and
+  fact-check against the web; a single call cannot. `--via=agent` prints the
+  brief and spends nothing — worth it for a second opinion from a different
+  model on something about to ship.
+- **Creation stays agent-backed, and that asymmetry is real.** Review and
+  direction are bounded single calls. Building a journey is an
+  edit → gate → read-failure → edit loop, and one API call cannot run one.
+- **Frames dominate every bill** at ~1,700 tokens each. `--beats=` is the
+  biggest lever in the repo: critiquing the four beats you are unhappy with
+  costs an eighth of critiquing thirty-two and answers the same question. Check
+  the estimate BEFORE sending — `--max-usd` refuses, rather than reporting an
+  overspend afterwards.
+- **Downscale to 768px, always.** The film reviewer was sending full-size
+  frames; 86 of them is a 35 MB body that died with `UND_ERR_HEADERS_TIMEOUT` —
+  the same payload lesson `write-script.mjs` already carried. Downscaled:
+  6.3 MB, 177k → 36k input tokens, $0.496 → $0.153, identical findings quality.
+- **A model can be more specific than you expect, and still wrong about
+  architecture.** The critic correctly diagnosed the lamp and specified the
+  replacement API in detail — then proposed a new *archetype* for the
+  separation formation. Archetypes DRAW things; a formation draws nothing. It
+  belongs in the journey's `plan.js` beside the other shared derivations.
+
+## Film pipeline, second pass (2026-08-05)
+
+- **Measure a gain AFTER the processing it is supposed to survive.** The voice
+  chain was `volume(to reach -16 LUFS), compress` — so the gain was correct up
+  to the compressor, which then removed an unknown amount. One quiet narration
+  (-31.95 LUFS against a typical -30) was driven 2 dB harder, the mix landed at
+  -20 instead of -15.7, and loudnorm then needed +6 dB against 2.1 dB of peak
+  headroom, abandoned linear mode and went dynamic. **The gate failed on the
+  normaliser and the normaliser was not the cause.** Drive the compressor at a
+  fixed level, measure what comes out, trim to target, and put the true-peak
+  ceiling BEFORE the normaliser — a limiter after it fights it, which this file
+  already documented as a dead end.
+- **A hand-edited narration line is silently ignored on `--from=render`.**
+  Whether a shot is wordless is decided by the absence of a timing entry — i.e.
+  by what the VOICE actually said — so editing `film.js` and resuming from the
+  render keeps the old take. A full nine-minute render produced a byte-identical
+  timeline. It now throws and names `--from=voice`. The preflight was already
+  printing the true answer (`4m47s / 2 audio segments` against the pipeline's
+  `5m52s`) with nothing comparing them.
+- **A stale frames directory reviews the wrong film.** Capture was gated on
+  `!existsSync(dir)`, so a review came back clean about a cut nobody had made.
+  Frames must be newer than the master. Cost $0.50 to learn.
+- **A wordless shot on the wrong beat costs more than the silence.** The
+  director made the Golden Record silent — the most affecting object in the
+  journey, passing in five seconds of nothing — and the NEXT line opened
+  "Beyond it, the record rides on…", referring to a record the film had never
+  introduced. Check that every pronoun and definite article has an antecedent
+  the audience has actually heard. Wordless shots belong on a picture that needs
+  no words, not on the one carrying the most meaning.
+- **`cost.json` is written per invocation and OVERWRITTEN.** A run resumed with
+  `--from=` leaves a ledger showing only the last stage, so the on-disk record
+  cannot answer "what did this film cost end to end". Accumulate across resumes.
+- **The escort changed which shots freeze.** Six shots previously measured
+  0.1–0.4 on `motion`; a near-foreground object turning slowly with `u` adds
+  parallax that was not there when those drift values were tuned. Re-measure
+  after any change to a persistent layer rather than copying the old numbers —
+  this pass needed authored drift on exactly one shot.
+
 ## Deployment
 
 Target is **GitHub Pages at `swapnilskumbhar.github.io/journeys/`** — a project
@@ -498,6 +978,92 @@ Left before this is actually live: Pages has to be switched to "GitHub Actions"
 as its source once by hand (Settings → Pages), and `/og/<id>.png` is referenced
 by every shell but never generated, so links unfurl without a card.
 
-Still to do: `export-video.mjs` / `make-narration.mjs` are the howitworks
-originals and still target `__hiw` + discrete step indices. Retargeting them to
-the `__u` scalar should be simpler than the original, not harder.
+Video export is **done** — see the film pipeline above. `export-video.mjs` and
+`make-narration.mjs` remain in `scripts/` as the howitworks originals targeting
+`__hiw` + discrete step indices; they are superseded by `scripts/film.mjs` for
+this project and only worth keeping until the good parts they still hold (the
+ASS caption builder, the `gradfun` encode settings) are confirmed fully carried
+over. `make-thumbnails.mjs` and `make-postkit.mjs` are still un-retargeted.
+
+## The modeller, and the reference channel (2026-08-07, `earth-to-mars` rework)
+
+`scripts/model.mjs` is the first tool here that WRITES. The lessons that shaped
+it, and the defects it was built to catch:
+
+- **The gate can be green, the sweep clean, and the picture still bad — and only
+  a person scrolling it will tell you.** Every defect fixed in this pass was
+  reported by the user, not by a metric: a launch tower that was one black box,
+  buildings that rode the rocket into orbit, dust that swam across space, a
+  parachute that was a ball, a heat shield that was a wooden plate, a lander
+  buried in the ground. `frame-check` scored all of it as passing.
+- **A journey needs an agent; a MODEL does not.** The asymmetry this file
+  recorded ("one API call cannot run an edit → gate → read-failure loop") is
+  true of a journey and false of an archetype, whose whole quality is visible in
+  one frame. `model.mjs` runs that loop in a script: edit → build → capture →
+  look → edit. What keeps it safe is scope, not judgement — only `--files` may
+  be written, there is no discovery step, and a broken build is never allowed to
+  become the base for the next round.
+- **Exact-anchor edits beat whole-file rewrites, and the FAILURE FEEDBACK is
+  what makes them work.** Whole files cost output tokens at 6× input and invite
+  silently dropping code the model was not thinking about; an anchor cannot
+  delete what it does not name. The cost is that a `find` which misses, or
+  matches twice, is a failed edit — so those are collected and fed back verbatim
+  next round. A model told "your anchor matched 2 places" fixes it immediately;
+  one told nothing repeats it forever.
+- **Neither Terra nor Sol can search the web, and no phrasing changes that.**
+  They are bounded API calls, not agents. `--reference=` is the honest
+  substitute: research gathered by whoever runs the tool, passed as READ-ONLY
+  text. Keeping it separate from `--files` is the point — evidence the model can
+  rewrite is not evidence. `src/journeys/earth-to-mars/REFERENCE.md` is the
+  worked example, and hardware built against it came out markedly better.
+- **Ask what the object IS before tuning what it looks like.** `fins` was
+  declared in `vehicle` and never implemented — the string appeared exactly once
+  in the file, the parameter — under a comment correctly stating that a launcher
+  without them "is a smooth tube". The diagnosis was written and the fix never
+  was, and this file had recorded fins as applied. `grep -c` is the check.
+
+Defects worth not rediscovering:
+
+- **A layer with no `offsetMeters` sits on the spacecraft**, because the origin
+  is the spacecraft. `blocks` had no such parameter at all, so the launch
+  complex in BOTH `earth-to-mars` and `earth-to-moon` climbed to orbit with the
+  vehicle for as long as those journeys existed. `src/kit/ground-frame.js` now
+  exports `groundRelativeOffsetMeters` to make the convention unforgettable.
+- **A fade window must overlap the layer it hands off to, keyed to the same
+  quantity.** `stars` faded over 70–110 km while `mars-sky` faded in from
+  300 km, so a starfield composited over lit ground for 200 km of altitude —
+  and inflated that beat's occupancy while doing it.
+- **Moving a gate's numbers is not closing it.** `frames(rebase, 0.9, 40)` at a
+  1.4 m frame still evaluates to 0.69. A rise band whose low end sits under the
+  frame being protected cannot switch a layer off. Evaluate the function at the
+  beat's real frame before believing it.
+- **One gain cannot serve a disc and a 23° lobe.** `backdrop`'s `sunGain` scaled
+  the sun disc and its `pow(c, 8)` glare together, so three passes oscillated
+  between a grey sun and a blown sky, each measuring the other as worse.
+  `glareGain` separates them; a small hard source may clip, a wide soft one
+  never may. `clip` reads 0.006 against a 0.06 bar throughout — **the gate is
+  structurally blind to overexposure**, and occupancy actively rewards a wash.
+- **Adding π to one Euler term does not flip an object.** `[pitch + π, yaw,
+  roll]` composes as `Rx(pitch)·Rx(π)·Ry(yaw)·Rz(roll)` — the half-turn lands
+  mid-chain, so yaw and roll are applied in a flipped frame. Correct only when
+  both are zero. Compose quaternions and post-multiply.
+- **`vehicle` centres geometry on the origin**, y −0.5 → +0.5 of `lengthMeters`,
+  so a resting height of `0.42 × len` buries the body by 8% of its length.
+- **A physically static structure must not read the clock.** `spin` rotates a
+  `particleField` group on the wall clock and `jitter` displaces every point on
+  three sine terms of it — at a 7-frame radius, every star in the galactic band
+  wandering through a box a frame across, permanently. Layers may use `t`; a
+  celestial field may not.
+- **Do not buy a metric with something that cannot be there.** `adjacent`
+  compares 16×10 cell averages, so a black frame full of small bright objects
+  scores badly however good it is — and a pass "solved" that with a rust
+  full-frame gradient over interplanetary space. The number moved and the
+  journey started lying. If a bar cannot be cleared honestly, say so; a metric
+  problem is not fixed by painting the picture.
+- **The downscale cache is a second stale-frames trap.** `reviewer.mjs` keyed
+  its 768px JPEGs on filename alone, and a re-capture writes `beat-23.png` over
+  `beat-23.png` — so the provenance guard passed while the upload was a day old
+  and the entire report, diff included, described replaced code.
+- **Never pipe a gate or a multi-round run through `tail`.** It reports tail's
+  exit code, so a failure reads as a pass, and it discards everything above —
+  which on `model.mjs` is the whole record of what was changed and why.

@@ -1,6 +1,7 @@
 // Capture a journey at chosen points along its axis.
 //
 //   node scripts/shots.mjs big-bang [outDir] [port] [--at=0.1,0.5] [--beats] [--sheet]
+//                                   [--blind]
 //
 // The only reliable way to SEE a journey: the IDE preview tab is compositor
 // throttled and screenshots there time out. Captures are deterministic because
@@ -19,7 +20,23 @@ const args = process.argv.slice(2);
 const flag = (name) => args.find((a) => a.startsWith(`--${name}`));
 const id = args.find((a) => !a.startsWith('--')) ?? 'big-bang';
 const positional = args.filter((a) => !a.startsWith('--'));
-const outDir = resolve(positional[1] ?? `review-shots/${id}`);
+
+// --blind: capture with ALL engine chrome hidden — copy panel, ribbon, hero,
+// back link. The point is a review that cannot cheat.
+//
+// `journey-craft`'s one rule is "cover the copy panel with your thumb; if you
+// cannot tell what the beat is about, the beat does not exist". Four journeys
+// shipped broken with that rule written down and an agent that had "looked at
+// the screenshots", because reading the caption first makes the brain supply
+// the picture. You cannot un-see a heading. So this removes the option.
+//
+// Two things matter and both are easy to get wrong:
+//   · the FILENAMES carry no heading, only an index — a reviewer handed
+//     `09-io-s-volcanoes.png` has already been told the answer;
+//   · the key mapping index → heading is written OUTSIDE the frames directory,
+//     so the whole directory can be handed to a reviewer with no leak.
+const blind = args.includes('--blind');
+const outDir = resolve(positional[1] ?? `review-shots/${id}${blind ? '-blind' : ''}`);
 const port = Number(positional[2] ?? 5175);
 
 mkdirSync(outDir, { recursive: true });
@@ -39,9 +56,11 @@ if (atFlag) {
   const us = beats.map((b) => A.toU(b.at)).sort((a, b) => a - b);
   samples = us.map((u, i) => {
     const next = us[i + 1] ?? 1;
+    const n = String(i + 1).padStart(2, '0');
     return {
       u: Math.min(1, u + (next - u) * 0.45), // mid-beat, where the copy is settled
-      label: `${String(i + 1).padStart(2, '0')}-${slug(beats[i].heading)}`,
+      label: blind ? `beat-${n}` : `${n}-${slug(beats[i].heading)}`,
+      heading: beats[i].heading,
     };
   });
 }
@@ -64,8 +83,20 @@ await page.goto(url, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => window.__journey?.journey?.beats?.length > 0, null, { timeout: 20000 });
 await page.waitForTimeout(1200); // fonts, entrance transition, first layers
 
+if (blind) {
+  // `visibility: hidden` rather than `display: none` — the panel and ribbon
+  // still need to occupy layout so nothing reflows and the canvas keeps the
+  // exact geometry the authored composition was framed against. A blind frame
+  // has to be the SAME picture as the reviewed one, minus the words.
+  await page.addStyleTag({
+    content: `.beat-panel, .ribbon, .journey-hero, .home-hero, .back-link, .scroll-hint
+              { visibility: hidden !important; }`,
+  });
+  await page.waitForTimeout(200);
+}
+
 const index = [];
-for (const { u, label } of samples) {
+for (const { u, label, heading } of samples) {
   await page.evaluate((v) => { window.__u = v; }, u);
   // Layers mount on the next sync; give the fades and the ambient clock a
   // moment, then hold one more frame so the composited result is what lands.
@@ -88,7 +119,16 @@ for (const { u, label } of samples) {
   );
 }
 
-writeFileSync(join(outDir, 'index.json'), JSON.stringify(index, null, 2));
+if (blind) {
+  // The key lives OUTSIDE outDir, so the frames directory can be handed to a
+  // reviewer wholesale with nothing in it that says what the frames are meant
+  // to be. Blindness that depends on the reviewer choosing not to open a file
+  // is not blindness.
+  writeFileSync(`${outDir}.key.json`, JSON.stringify(index, null, 2));
+  console.log(`key (NOT for the reviewer) → ${outDir}.key.json`);
+} else {
+  writeFileSync(join(outDir, 'index.json'), JSON.stringify(index, null, 2));
+}
 
 if (flag('sheet')) {
   const sheet = await browser.newPage({ viewport: { width: 1320, height: 1000 } });
@@ -97,9 +137,12 @@ if (flag('sheet')) {
   // sheet of broken-image icons that still screenshots "successfully".
   const tiles = index.map((r) => {
     const b64 = readFileSync(r.file).toString('base64');
+    // The axis readout is a leak too: "9.58 AU" or "2,895 km down" tells a
+    // reviewer exactly where they are and therefore what they are looking at.
+    const caption = blind ? r.label : `${r.label} · ${r.readout}`;
     return `<figure style="margin:0">
       <img src="data:image/png;base64,${b64}" style="width:100%;display:block;border-radius:3px">
-      <figcaption style="padding:3px 2px 6px">${r.label} · ${r.readout}</figcaption>
+      <figcaption style="padding:3px 2px 6px">${caption}</figcaption>
     </figure>`;
   });
   await sheet.setContent(`

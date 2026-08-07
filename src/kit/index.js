@@ -14,3 +14,4 @@ export * from './label-layout.js';
 export * from './motion.js';
 export * from './callouts.js';
 export * from './highlight.js';
+export * from './ground-frame.js';

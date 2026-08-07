@@ -1,18 +1,18 @@
 // How long the page is, in viewport-heights of scroll, and the per-beat floor.
 // Split out so scripts/smoke.mjs can import it in Node.
 //
-// 82 vh over 32 beats, Σweight = 34.40 (see DESIGN.md §1). Tightest beat
-// (3, "The Moon, in passing", weight 0.90) comes out at ~2.15 vh; widest
-// (23, "The Pale Blue Dot", weight 1.35) at ~3.22 vh — deliberately the
-// widest beat in the journey, because it is the emotional centre and the one
-// place DESIGN.md insists must not be rushed.
-export const length = 82;
+// 62 vh over 22 beats. Σweight = 24.25 (see plan.js — each beat's three
+// segments sum to its own declared weight), so the tightest beat, at weight
+// 1.00, comes out at 2.56 vh and the widest, the Pale Blue Dot at 1.45, at
+// 3.71 vh. The first build ran 82 vh over 32 beats for a mean of 2.56; this
+// one is shorter and every beat gets more scroll, which is what "fewer, denser
+// beats" costs and buys.
+export const length = 62;
 
-// Flat floor, same reasoning as earth-to-mars: every beat here — including
-// every cruise beat — carries a concrete visual device (see DESIGN.md §3),
-// so there is no tiered floor the way big-bang needs one for eras with wildly
-// different visual density. 1.5 vh matches the other two spaceflight
-// journeys' floor exactly; every beat here clears it with at least 0.6 vh of
-// margin (see the table above), which is intentional slack given how much
-// harder the cruise beats are to hold visually than either earlier journey's.
+// Flat floor, same reasoning as earth-to-mars: every beat here stages a
+// concrete scene — there is no tiered floor of the kind big-bang needs for
+// eras with wildly different visual density, because the cruise beats that
+// had nothing to stage were cut rather than paced around. 1.5 vh matches the
+// other three spaceflight journeys exactly, and every beat clears it with at
+// least a viewport of margin.
 export const floorVh = () => 1.5;

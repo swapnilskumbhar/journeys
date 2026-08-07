@@ -184,7 +184,106 @@ function bootprint(ctx, rand, { dark = '#232322', light = '#f0eee6', dust = '#9c
   }
 }
 
-const KINDS = { cuneiform, bootprint };
+function record(ctx, rand, { disc = '#c9a24a', groove = '#8a6a26', dark = '#40300e', light = '#f4e1a4' } = {}) {
+  // An engraved disc: a metal plate carrying instructions for whoever finds it.
+  // Voyager's Golden Record cover is the case this was written for, but the
+  // shape is general — the Pioneer plaque, a foundation-stone plate, a
+  // commemorative medal are the same object, and every one of them is read
+  // from its MARKS rather than from its outline, which is what puts it here
+  // rather than in silhouette.js.
+  //
+  // Everything is drawn as concentric structure plus a small number of
+  // diagrams, because that is what makes an engraved disc legible at a couple
+  // of hundred pixels: the grooves say "record", the diagrams say "this is
+  // meant to be understood", and neither survives being drawn as one flat
+  // texture.
+  const R = S * 0.46;
+  const cx = 0;
+  const cy = S * 0.5;
+
+  ctx.fillStyle = disc;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // A rim, and the spindle hole — the two features that stop a gold circle
+  // reading as a coin.
+  ctx.strokeStyle = light;
+  ctx.lineWidth = S * 0.012;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.965, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = groove;
+  ctx.lineWidth = Math.max(1, S * 0.0045);
+  for (let i = 0; i < 46; i++) {
+    const rr = R * (0.30 + 0.63 * (i / 46)) * (1 + (rand() - 0.5) * 0.006);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.055, 0, Math.PI * 2);
+  ctx.fill();
+
+  // The pulsar map: a burst of rays of different lengths from one point, each
+  // ticked with binary. It is the most recognisable thing on the real cover
+  // and it reads at almost any size because it is pure radial geometry.
+  const px0 = cx - R * 0.42;
+  const py0 = cy - R * 0.40;
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = Math.max(1, S * 0.006);
+  for (let i = 0; i < 13; i++) {
+    const a = (i / 13) * Math.PI * 2 + rand() * 0.12;
+    const len = R * (0.16 + rand() * 0.20);
+    ctx.beginPath();
+    ctx.moveTo(px0, py0);
+    ctx.lineTo(px0 + Math.cos(a) * len, py0 + Math.sin(a) * len);
+    ctx.stroke();
+  }
+
+  // The hydrogen hyperfine transition — two circles with a linking bar, the
+  // unit of time and length the rest of the diagram is quoted in.
+  const hx = cx + R * 0.44;
+  const hy = cy - R * 0.44;
+  ctx.lineWidth = Math.max(1, S * 0.007);
+  for (const dx of [-R * 0.07, R * 0.07]) {
+    ctx.beginPath();
+    ctx.arc(hx + dx, hy, R * 0.055, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(hx + dx, hy, R * 0.015, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.moveTo(hx - R * 0.02, hy);
+  ctx.lineTo(hx + R * 0.02, hy);
+  ctx.stroke();
+
+  // The playback diagram: the disc seen edge on with a stylus on it, plus a
+  // row of binary ticks giving the rotation period.
+  const sx = cx - R * 0.40;
+  const sy = cy + R * 0.46;
+  ctx.beginPath();
+  ctx.moveTo(sx - R * 0.20, sy);
+  ctx.lineTo(sx + R * 0.20, sy);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(sx + R * 0.14, sy);
+  ctx.lineTo(sx + R * 0.06, sy + R * 0.13);
+  ctx.stroke();
+
+  ctx.fillStyle = dark;
+  for (let i = 0; i < 22; i++) {
+    if (rand() < 0.42) continue;
+    const bx = cx + R * (0.06 + 0.03 * i);
+    ctx.fillRect(bx, cy + R * 0.50, S * 0.008, S * (0.014 + rand() * 0.022));
+  }
+}
+
+const KINDS = { cuneiform, bootprint, record };
 
 function buildAtlas(kind, variants, seed, opts, body) {
   const draw = KINDS[kind];

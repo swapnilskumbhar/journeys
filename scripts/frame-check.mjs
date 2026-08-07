@@ -1,6 +1,7 @@
 // Does this journey LOOK like anything?
 //
 //   node scripts/frame-check.mjs [id …] [--port=5175] [--out=dir] [--json]
+//                                [--look=32] [--gate=ship]
 //
 // The pacing gate taught this project that a defect you can only describe in
 // adjectives ("too fast") stays unfixed until someone measures it in the unit
@@ -28,6 +29,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readdirSync } from 'node:fs';
+// The RULER lives in one module so `film-gate.mjs` scores a film's own frames
+// with the same numbers the stills were gated on. This file keeps the POLICY:
+// which beats to sample, and what the bar is.
+import { measure, sigDistance, mean, fmt, GATE, SHIP, MASKS, shipBarFor } from './lib/frame-metrics.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => {
@@ -40,6 +45,12 @@ const asJson = args.includes('--json');
 // `--look` also scores the view ±N° off the authored direction, which is what a
 // reader gets by left-dragging. Off by default: it triples capture time.
 const lookDeg = args.includes('--look') ? 32 : Number(flag('look', 0));
+// `--gate=ship` additionally applies the JOURNEY-level bar below. Without it
+// this script only gates per-beat, and per-beat floors are so low that
+// `voyager` — 0.026 occupancy, the same white sticker 32 times — very nearly
+// cleared them. Per-beat floors catch broken frames; only the journey bar
+// catches a journey that is uniformly, consistently not worth scrolling.
+const shipGate = flag('gate', '') === 'ship';
 
 const ids = args.filter((a) => !a.startsWith('--'));
 const allIds = readdirSync(resolve('src/journeys'), { withFileTypes: true })
@@ -47,26 +58,8 @@ const allIds = readdirSync(resolve('src/journeys'), { withFileTypes: true })
   .map((d) => d.name);
 const targets = ids.length ? ids : allIds;
 
-// --- the gates -------------------------------------------------------------
-// Calibrated against `big-bang`, which is the journey that works, and against
-// the four that did not. These are FLOORS, not targets: a frame can pass every
-// one of them and still be dull. Failing one is close to proof it is broken.
-const GATE = {
-  // Fraction of the un-masked frame that is meaningfully different from the
-  // frame's own background level. Below this the picture is a void with a
-  // caption on it. `voyager`'s cruise beats score ~0.004.
-  occupancy: 0.02,
-  // Luminance spread. A single flat wash of colour — the "brown wall" — has
-  // almost none. `crust-to-core`'s mantle beats score ~0.02.
-  contrast: 0.045,
-  // Perceptual distance between ADJACENT beats, 0–100. Consecutive beats that
-  // score below this are the same picture twice, whatever the copy says.
-  // Four identical grey limbs in `earth-to-moon` score ~1.5.
-  adjacent: 6.0,
-  // How many consecutive near-identical frames before it is a defect rather
-  // than a deliberate hold. Two is a hold; three is a stall.
-  runLength: 3,
-};
+// The gates and the ship bar are defined in `lib/frame-metrics.mjs`, alongside
+// the measurement they grade, so the film gate cannot drift from this one.
 
 mkdirSync(outDir, { recursive: true });
 
@@ -90,7 +83,7 @@ for (const id of targets) {
     await page.evaluate((v) => { window.__u = v; window.__look = { yaw: 0, pitch: 0 }; }, u);
     await page.waitForTimeout(650);
     const buf = await page.screenshot();
-    const m = await measure(scratch, buf);
+    const m = await measure(scratch, buf, { mask: MASKS.journey });
 
     // The flanks. Readers can left-drag the view ±40°, so the world just
     // outside the authored frame is now reachable — and a composition that is
@@ -102,7 +95,7 @@ for (const id of targets) {
       for (const yaw of [-lookDeg, lookDeg]) {
         await page.evaluate((y) => { window.__look = { yaw: y, pitch: 0 }; }, yaw);
         await page.waitForTimeout(420);
-        sides.push((await measure(scratch, await page.screenshot())).occupancy);
+        sides.push((await measure(scratch, await page.screenshot(), { mask: MASKS.journey })).occupancy);
       }
       flank = Math.min(...sides);
       await page.evaluate(() => { window.__look = { yaw: 0, pitch: 0 }; });
@@ -127,6 +120,7 @@ for (const id of targets) {
     if (f.contrast < GATE.contrast) bad.push('FLAT');
     if ((f.run ?? 1) >= GATE.runLength) bad.push(`SAME×${f.run}`);
     if (f.flank !== null && f.flank < GATE.occupancy) bad.push('FLANK-EMPTY');
+    if (f.clip > GATE.clip) bad.push('CLIPPED');
     f.flags = bad;
     if (bad.length) flags.push(f);
   }
@@ -139,13 +133,38 @@ for (const id of targets) {
     meanOccupancy: mean(frames.map((f) => f.occupancy)),
     meanContrast: mean(frames.map((f) => f.contrast)),
     meanAdjacent: mean(frames.slice(1).map((f) => f.adjacent)),
+    meanClip: mean(frames.map((f) => f.clip)),
     emptiest: worst.label,
   };
+
+  // The ship bar. Reported as named shortfalls rather than one boolean,
+  // because "which of the four did I miss, and by how much" is the whole
+  // content of the next iteration.
+  // The journey's own bar, if it declares one. See `shipBarFor` for why a
+  // journey is allowed to move its floor and what it owes in return.
+  const bar = await shipBarFor(id);
+  const shortfalls = [];
+  if (summary.meanOccupancy < bar.occupancy)
+    shortfalls.push(`occupancy ${fmt(summary.meanOccupancy)} < ${bar.occupancy}`);
+  if (summary.meanContrast < bar.contrast)
+    shortfalls.push(`contrast ${fmt(summary.meanContrast)} < ${bar.contrast}`);
+  if (summary.meanAdjacent < bar.adjacent)
+    shortfalls.push(`adjacent ${summary.meanAdjacent.toFixed(1)} < ${bar.adjacent}`);
+  const flaggedFrac = flags.length / (frames.length || 1);
+  if (flaggedFrac > bar.flaggedFraction)
+    shortfalls.push(`flagged ${(flaggedFrac * 100).toFixed(0)}% > ${bar.flaggedFraction * 100}%`);
+  summary.shipBar = bar;
+  summary.shipShortfalls = shortfalls;
+  summary.ship = shortfalls.length === 0;
+
   report.push({ ...summary, frames });
 
   if (!asJson) {
     console.log(`\n${id} — ${frames.length} beats`);
-    console.log(`  occupancy ${fmt(summary.meanOccupancy)}   contrast ${fmt(summary.meanContrast)}   adjacent ${summary.meanAdjacent.toFixed(1)}`);
+    console.log(
+      `  occupancy ${fmt(summary.meanOccupancy)}   contrast ${fmt(summary.meanContrast)}` +
+      `   adjacent ${summary.meanAdjacent.toFixed(1)}   clip ${fmt(summary.meanClip)}`,
+    );
     for (const f of frames) {
       const mark = f.flags.length ? '  ✗' : '   ';
       const adj = f.adjacent === null ? '   —' : f.adjacent.toFixed(1).padStart(5);
@@ -156,8 +175,27 @@ for (const id of targets) {
       );
     }
     if (flags.length) console.log(`  → ${flags.length}/${frames.length} beats flagged`);
+    if (shipGate) {
+      // A moved floor is ALWAYS printed, pass or fail. A threshold that a
+      // journey quietly lowered and nothing ever mentions again is not a bar,
+      // it is a disabled check — and the whole value of this gate is that
+      // "done" is an exit code nobody had to be trusted about.
+      if (bar.overridden?.length) {
+        console.log(`  → ship bar overridden by ${id}/gate.js: ${bar.overridden.join(' · ')}`);
+        if (bar.reason) console.log(`     reason: ${bar.reason}`);
+      }
+      console.log(
+        shortfalls.length
+          ? `  → SHIP BAR NOT MET: ${shortfalls.join(' · ')}`
+          : '  → ship bar met',
+      );
+    }
   }
-  if (flags.length) failed++;
+  // Without --gate=ship a single flagged beat fails the run, which is the
+  // right behaviour for the tight fix-one-beat loop. With it, the journey bar
+  // is what decides: a 30-beat journey is allowed its 15% of hard beats, the
+  // same slack big-bang takes.
+  if (shipGate ? shortfalls.length > 0 : flags.length > 0) failed++;
 }
 
 await browser.close();
@@ -168,7 +206,8 @@ writeFileSync(path, JSON.stringify(report, null, 2));
 if (asJson) console.log(JSON.stringify(report.map(({ frames, ...s }) => s), null, 2));
 else {
   console.log(`\n→ ${path}`);
-  console.log(failed ? `\nFRAME CHECK FAIL — ${failed} journey(s) have flagged beats` : '\nFRAME CHECK PASS');
+  const what = shipGate ? 'miss the ship bar' : 'have flagged beats';
+  console.log(failed ? `\nFRAME CHECK FAIL — ${failed} journey(s) ${what}` : '\nFRAME CHECK PASS');
 }
 process.exit(failed ? 1 : 0);
 
@@ -189,82 +228,6 @@ async function samplesFor(id) {
   } catch { return null; }
 }
 
-// --- measurement -----------------------------------------------------------
-// Runs in the page because that is where an image decoder already exists; this
-// project has no image dependency and does not need one for this.
-async function measure(pg, buf) {
-  const b64 = buf.toString('base64');
-  return pg.evaluate(async (data) => {
-    const img = new Image();
-    img.src = `data:image/png;base64,${data}`;
-    await img.decode();
-    const W = 192, H = 120;
-    const c = new OffscreenCanvas(W, H);
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0, W, H);
-    const px = ctx.getImageData(0, 0, W, H).data;
-
-    // THE MASK. Everything the ENGINE draws on top of the world is excluded:
-    // the copy panel (lower left), the ribbon (bottom strip), the header
-    // (top strip). What is left is the picture the journey actually made.
-    const masked = (x, y) => {
-      const u = x / W, v = y / H;
-      if (v > 0.90) return true;                       // ribbon
-      if (v < 0.055) return true;                      // header
-      if (u < 0.36 && v > 0.50 && v < 0.90) return true; // copy panel
-      return false;
-    };
-
-    const lums = [];
-    const cells = 16 * 10;
-    const sig = new Float64Array(cells * 3);
-    const sigN = new Float64Array(cells);
-
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (masked(x, y)) continue;
-        const i = (y * W + x) * 4;
-        const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
-        lums.push(0.2126 * r + 0.7152 * g + 0.0722 * b);
-        const cell = Math.floor((y / H) * 10) * 16 + Math.floor((x / W) * 16);
-        sig[cell * 3] += r; sig[cell * 3 + 1] += g; sig[cell * 3 + 2] += b;
-        sigN[cell]++;
-      }
-    }
-    for (let k = 0; k < cells; k++) {
-      const n = sigN[k] || 1;
-      sig[k * 3] /= n; sig[k * 3 + 1] /= n; sig[k * 3 + 2] /= n;
-    }
-
-    lums.sort((a, b) => a - b);
-    const q = (p) => lums[Math.min(lums.length - 1, Math.floor(p * lums.length))];
-    const med = q(0.5);
-    const m = lums.reduce((a, v) => a + v, 0) / lums.length;
-    const sd = Math.sqrt(lums.reduce((a, v) => a + (v - m) ** 2, 0) / lums.length);
-
-    // Occupancy: how much of the picture is NOT its own background. Measured
-    // against the median rather than against black, so a bright field on a
-    // bright sky counts the same as a bright object on black.
-    let occ = 0;
-    for (const v of lums) if (Math.abs(v - med) > 0.055) occ++;
-
-    return {
-      occupancy: occ / lums.length,
-      contrast: sd,
-      meanLum: m,
-      sig: Array.from(sig),
-    };
-  }, b64);
-}
-
-function sigDistance(a, b) {
-  let s = 0;
-  for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]);
-  return (s / a.length) * 100;
-}
-
-function mean(xs) { return xs.reduce((a, b) => a + b, 0) / (xs.length || 1); }
-function fmt(v) { return v.toFixed(3).padStart(6); }
 function slug(s) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
 }

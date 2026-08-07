@@ -15,7 +15,7 @@ export const beats = [
     at: 1,
     heading: 'The pad',
     body: 'A Mars transfer stack stands on the pad — taller and heavier than an Apollo stack, because it carries its own cruise stage: the hardware that will still be firing four decades of distance from now. Almost all of its mass, again, is propellant.',
-    hint: 'Scroll to travel outward. The axis is distance along the flight path, not time.',
+    hint: 'Scroll to travel outward. The axis is distance along the flight path; the clock beside it counts the two hundred and fifty-nine days that distance takes.',
   },
   {
     at: 4,
@@ -55,7 +55,7 @@ export const beats = [
   {
     at: 2.2e5,
     heading: 'Trans-Mars injection',
-    body: 'The stage relights and burns until the trajectory no longer returns to Earth. This single burn sets essentially the whole of the next four decades of distance — there is no steering to speak of between here and Mars beyond a few small corrections.',
+    body: 'The stage relights and burns until the trajectory no longer returns to Earth. This single burn sets essentially the whole of the next four decades of distance, and the next eight and a half months of time — there is no steering to speak of between here and Mars beyond a few small corrections. The burn lasts minutes. It buys the rest of the year.',
   },
   {
     at: 1.0e7,
@@ -75,7 +75,7 @@ export const beats = [
   {
     at: 1.5e11,
     heading: "Crossing Earth's orbit",
-    body: "The trajectory line crosses a faint ring marking Earth's own path around the Sun — not a place, just the circle Earth traces every year, now behind and inside the ship's own arc. Earth and the Sun have both shrunk to points by this distance.",
+    body: "The trajectory line crosses a faint ring marking Earth's own path around the Sun — not a place, just the circle Earth traces every year, now behind and inside the ship's own arc. Earth and the Sun have both shrunk to points by this distance. Fifty-seven days have passed — and the ship will never again be as fast as it was the day it left.",
   },
   {
     at: 2.2e11,
@@ -90,32 +90,32 @@ export const beats = [
   {
     at: 5.0e11,
     heading: "Crossing Mars' orbit",
-    body: "A second faint ring, Mars' own 2.279e11-metre orbital path, and this time there is a bright point sitting almost on the crossing: the trajectory was aimed to arrive exactly when Mars does. Rendezvous, not coincidence.",
+    body: "A second faint ring, Mars' own 2.279e11-metre orbital path, and this time there is a bright point sitting almost on the crossing: the trajectory was aimed to arrive exactly when Mars does. Rendezvous, not coincidence. Two hundred and twenty-five days gone: the first half of the arc took fifty-seven of them, because a transfer orbit is slowest at the far end, where it is climbing hardest against the Sun.",
   },
   {
-    at: 5.30e11,
+    at: MARS_D - 5.97e8,
     heading: 'A point of light',
     body: "Mars is now the brightest thing ahead of the ship, an ochre-tinted point with no disc yet resolvable — the same threshold the Moon crossed for the outbound half of the other journey, reached here after a much longer, much emptier approach.",
   },
   {
-    at: 5.55e11,
+    at: MARS_D - 5.46e7,
     heading: 'A disc',
     body: "A small, hard-edged ochre disc, still smaller in this frame than the Moon ever appeared from lunar orbit — Mars is a smaller body, seen across a longer final approach. It is close enough now that its shape, not just its colour, is the subject.",
   },
   {
-    at: 5.590e11,
+    at: MARS_D - 1.016e7,
     heading: 'Ochre, and a white cap',
     body: "Mars fills a third of the frame: rust-red dust across most of the disc, a bright polar cap at one pole, and a hard terminator with no atmosphere to soften it. The colour is iron oxide — the planet is, quite literally, rusted.",
   },
   {
-    at: 5.598e11,
+    at: MARS_D - 5.79e6,
     heading: 'Olympus Mons, Valles Marineris',
     body: "Two features resolve on the approach: a shield volcano on the limb three times the height of Everest, and a canyon system scored across the disc that would stretch most of the way across the continental United States. Neither needs narration once it is actually visible.",
   },
   {
     at: MARS_D - 1.25e5,
     heading: 'Entry interface',
-    body: "One hundred and twenty-five kilometres of altitude — the conventional line where atmosphere starts to matter — and a thin plasma sheath forms around the capsule, orange-white, streaming behind it. The ship is still moving several kilometres a second.",
+    body: "One hundred and twenty-five kilometres of altitude — the conventional line where atmosphere starts to matter — and a thin plasma sheath forms around the capsule, orange-white, streaming behind it. The ship is still moving several kilometres a second. Everything from here to the ground takes under seven minutes — after two hundred and fifty-nine days, the whole mission is decided in the time it takes to boil a kettle twice.",
   },
   {
     at: MARS_D - 6.0e4,

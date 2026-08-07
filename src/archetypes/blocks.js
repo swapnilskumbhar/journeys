@@ -102,6 +102,19 @@ export function blocks({
   lightDir = [0.7, 0.3, 0.5],
   sun = () => 0.6,
   night = () => 0,
+  // Displacement from the journey origin, in METRES — the same contract
+  // terrain, silhouette, particleField, blob, rocks and glowSphere already
+  // carry. Its absence here was not a decision, and it cost two journeys the
+  // same bug: in a journey whose ORIGIN IS THE VEHICLE, a block field with no
+  // offset sits at the origin, so the launch complex rides the rocket into
+  // orbit. `earth-to-mars` and `earth-to-moon` both shipped that.
+  //
+  // Deliberately still defaulting to null rather than to a ground offset:
+  // `blocks` legitimately draws things that are not on a planet, and a default
+  // that assumed otherwise would be a second number that has to agree with the
+  // journey's. Use `groundRelativeOffsetMeters` from src/kit/ground-frame.js to
+  // say "this stands on the ground" once, explicitly.
+  offsetMeters = null,
   opacity = () => 1,
   respectBand = true,
 } = {}) {
@@ -185,6 +198,13 @@ export function blocks({
     update({ u, local, rebase, t }) {
       // instances are authored in metres, so the group carries metre→world
       group.scale.setScalar(rebase.toWorld(1));
+      if (offsetMeters !== null) {
+        const raw = typeof offsetMeters === 'function'
+          ? offsetMeters({ u, local, rebase, t })
+          : offsetMeters;
+        const [ox, oy, oz] = Array.isArray(raw) ? raw : [raw, 0, 0];
+        group.position.set(rebase.toWorld(ox), rebase.toWorld(oy), rebase.toWorld(oz));
+      }
       uniforms.uSun.value = sun({ u, local, t });
       uniforms.uNight.value = night({ u, local, t });
       const w = respectBand ? rebase.weight(areaMeters) : 1;

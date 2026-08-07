@@ -34,6 +34,7 @@ const fragment = /* glsl */ `
   uniform float uSunSize;   // angular radius, cosine threshold
   uniform float uSunSoft;
   uniform float uSunGain;   // overall strength of the sun/glare term
+  uniform float uGlareGain; // the GLARE LOBES only, independent of the disc
   uniform float uBandLift;  // brightness of the horizon band
   uniform float uOpacity;
 
@@ -61,10 +62,24 @@ const fragment = /* glsl */ `
     // across — put a full-intensity white disc over a third of the frame and
     // blew out everything the scene was about. A broad source has to be DIM;
     // only a small hard one can be allowed to clip.
+    // ONE GAIN CANNOT SERVE A DISC AND A 23 DEGREE LOBE. The pow(c, 8.0) term
+    // is at half strength 23 degrees off axis, so scaling it with the same
+    // uSunGain that sets the disc's brightness forces an impossible trade: turn
+    // the gain down far enough to stop the lobe washing a third of the sky and
+    // the sun stops being white, leave it up and the frame blows out. Three
+    // separate passes on earth-to-mars oscillated between those two, each
+    // measuring the other as worse. A SMALL HARD SOURCE IS ALLOWED TO CLIP —
+    // that is what a sun is — and a wide soft one never is, which is the same
+    // rule the comment above already states for the sea surface. So the lobes
+    // get their own gain. Defaults to 1, so every call site is unchanged.
+    //
+    // NO BACKTICKS IN THIS COMMENT. The shader is a JS template literal and a
+    // backtick here ends it three hundred lines early, which is exactly how
+    // this edit failed the first time.
     float c = dot(d, normalize(uSunDir));
     float disc = smoothstep(uSunSize - uSunSoft, uSunSize, c);
     float glare = pow(max(0.0, c), 90.0) * 0.5 + pow(max(0.0, c), 8.0) * 0.12;
-    col += uSunColor * (disc + glare) * uSunGain;
+    col += uSunColor * (disc + glare * uGlareGain) * uSunGain;
 
     gl_FragColor = vec4(col, uOpacity);
   }
@@ -80,6 +95,7 @@ export function backdrop({
   sunSize = 0.9985,
   sunSoft = 0.0012,
   sunGain = 1,
+  glareGain = 1,              // scales ONLY the glare lobes; 1 = previous behaviour
   bandLift = 0.55,
   opacity = () => 1,
   drive = null,               // per-frame overrides, same shape as the options
@@ -93,6 +109,7 @@ export function backdrop({
     uSunSize: { value: sunSize },
     uSunSoft: { value: sunSoft },
     uSunGain: { value: sunGain },
+    uGlareGain: { value: glareGain },
     uBandLift: { value: bandLift },
     uOpacity: { value: 1 },
   };
@@ -130,6 +147,7 @@ export function backdrop({
         if (d.sunColor !== undefined) uniforms.uSunColor.value.set(tmp.set(d.sunColor));
         if (d.bandLift !== undefined) uniforms.uBandLift.value = d.bandLift;
         if (d.sunGain !== undefined) uniforms.uSunGain.value = d.sunGain;
+        if (d.glareGain !== undefined) uniforms.uGlareGain.value = d.glareGain;
         // Size and softness are drivable for one reason: at night the source
         // is the MOON, which is a small hard disc of cold light where the sun
         // was a warm one. Swapping colour alone leaves a sun-sized moon.

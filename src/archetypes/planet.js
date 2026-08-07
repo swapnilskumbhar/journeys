@@ -36,6 +36,9 @@ const fragment = /* glsl */ `
   uniform float uGreen;    // land vegetation
   uniform float uIce;      // polar caps
   uniform float uNight;    // city lights on the dark side
+  uniform float uBands;    // latitudinal cloud banding — a gas giant, not a rock
+  uniform float uBandFreq;
+  uniform vec3  uBandColor;
   uniform float uOpacity;
 
   varying vec3 vNormalObj;
@@ -93,6 +96,22 @@ const fragment = /* glsl */ `
     // as a snowball at every epoch.
     float ice = smoothstep(0.90 - uIce * 0.09, 0.98 - uIce * 0.09, lat + detail * 0.04);
     albedo = mix(albedo, vec3(0.82, 0.87, 0.93), ice * uIce);
+
+    // LATITUDINAL BANDING. A gas giant has no surface to put continents on;
+    // what it has is zonal wind, and the belts and zones that wind organises
+    // the cloud tops into are the ONE thing that makes a tan sphere read as
+    // Jupiter rather than as a ball. fbm alone cannot produce them — it is
+    // isotropic by construction — so the latitude is warped by noise and then
+    // sliced, which gives belts that wander and pinch the way real ones do
+    // instead of a barcode. Off by default (uBands = 0), so every rocky world
+    // already in this project renders exactly as before.
+    float latWarp = n.y + (fbm(n * 3.4) - 0.5) * 0.14;
+    float belt = smoothstep(-0.22, 0.22, sin(latWarp * uBandFreq));
+    // A second, much finer set inside the first: real cloud tops have ripples
+    // along the belt edges, and without them the boundaries read as painted on.
+    float fine = 0.5 + 0.5 * sin(latWarp * uBandFreq * 3.7 + detail * 5.0);
+    vec3 banded = uBandColor * mix(0.74, 1.22, detail * 0.6 + fine * 0.4);
+    albedo = mix(albedo, banded, uBands * belt);
 
     // Molten phase: glowing fissures in a dark crust. The band must be NARROW —
     // fbm mostly lives near 0.5, so a wide threshold makes "crack" true almost
@@ -164,6 +183,25 @@ export function planet({
   atmosphereScale = 1.022,
   segments = 96,
   spin = 0.05,
+  // Gas-giant banding. `bands` is the strength (0 = a rocky world, unchanged),
+  // `bandColor` the belt tint and `bandFreq` roughly twice the number of belts
+  // pole to pole. Driveable per frame through `surface()` like every other
+  // uniform here.
+  bands = 0,
+  bandColor = 0x8a6a48,
+  bandFreq = 22,
+  // WHICH WAY THE POLE POINTS, in radians about world x and z. Zero — the
+  // default, and every existing call site — leaves the spin axis on world +y.
+  //
+  // This is not a nicety. Everything this shader varies with latitude (the ice
+  // caps, the fertile band, the belts on a gas giant) is measured off the
+  // sphere's own +y, so a journey whose travel axis is also +y looks straight
+  // down the pole at every body it passes: `earth-to-mars` leaves Earth
+  // radially along +y, and beats 6 through 9 rendered a white cap filling the
+  // middle of the disc with the continents smeared around the rim, which is
+  // exactly what a pole-on view of this shader IS. No amount of surface tuning
+  // reaches it, because the defect is the viewing latitude and not the surface.
+  tilt = [0, 0],
   surface = () => ({}),
   opacity = () => 1,
 } = {}) {
@@ -175,6 +213,9 @@ export function planet({
     uGreen: { value: 0 },
     uIce: { value: 0 },
     uNight: { value: 0 },
+    uBands: { value: bands },
+    uBandFreq: { value: bandFreq },
+    uBandColor: { value: new THREE.Color(bandColor) },
     uOpacity: { value: 1 },
   };
 
@@ -206,8 +247,13 @@ export function planet({
     }),
   );
 
+  // The spin has to happen INSIDE the tilt, or the two fight: `rotation.y` is
+  // assigned every frame and would wipe anything written to the same Euler.
+  const spinner = new THREE.Group();
+  spinner.add(mesh, atmo);
   const group = new THREE.Group();
-  group.add(mesh, atmo);
+  group.add(spinner);
+  group.rotation.set(tilt[0] ?? 0, 0, tilt[1] ?? 0);
 
   return {
     group,
@@ -218,7 +264,7 @@ export function planet({
         ? radiusMeters({ u, local, rebase })
         : radiusMeters;
       group.scale.setScalar(rebase.toWorld(meters));
-      group.rotation.y = t * spin;
+      spinner.rotation.y = t * spin;
 
       if (offsetMeters !== null) {
         const raw = typeof offsetMeters === 'function'
@@ -234,6 +280,7 @@ export function planet({
       if (s.green !== undefined) uniforms.uGreen.value = s.green;
       if (s.ice !== undefined) uniforms.uIce.value = s.ice;
       if (s.night !== undefined) uniforms.uNight.value = s.night;
+      if (s.bands !== undefined) uniforms.uBands.value = s.bands;
 
       const o = opacity({ u, local, rebase }) * (respectBand ? rebase.weight(meters) : 1);
       uniforms.uOpacity.value = o;

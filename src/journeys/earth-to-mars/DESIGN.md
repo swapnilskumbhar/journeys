@@ -71,10 +71,10 @@ bug that looks fine relative to the axis can still be 0.13 vh on screen.
 | 14 | The cruise stage unfolds | 2.2e11 | log | 0.95 | 2.05 |
 | 15 | A course correction | 3.6e11 | log | 1.05 | 2.27 |
 | 16 | Crossing Mars' orbit | 5.0e11 | log | 0.90 | 1.95 |
-| 17 | A point of light | 5.30e11 | log | 1.00 | 2.16 |
-| 18 | A disc | 5.55e11 | log | 1.00 | 2.16 |
-| 19 | Ochre, and a white cap | 5.590e11 | log | 1.05 | 2.27 |
-| 20 | Olympus Mons, Valles Marineris | 5.598e11 | log | 1.05 | 2.27 |
+| 17 | A point of light | MARS_D-5.97e8 | log | 1.00 | 2.16 |
+| 18 | A disc | MARS_D-5.46e7 | log | 1.00 | 2.16 |
+| 19 | Ochre, and a white cap | MARS_D-1.016e7 | log | 1.05 | 2.27 |
+| 20 | Olympus Mons, Valles Marineris | MARS_D-5.79e6 | log | 1.05 | 2.27 |
 | 21 | Entry interface | MARS_D-1.25e5 | linear | 1.30 | 2.81 |
 | 22 | Peak heating | MARS_D-6.0e4 | linear | 1.20 | 2.59 |
 | 23 | Parachute | MARS_D-1.1e4 | linear | 1.20 | 2.59 |
@@ -100,36 +100,39 @@ altitude above Mars, then `on Mars` / `N m from the ladder`.
 
 ## 2. The beats
 
-| # | heading | D (m) | on screen at the beat's MIDPOINT |
-| --- | --- | --- | --- |
-| 1 | The pad | 1 | The stack on the pad, taller and heavier than an Apollo stack — a Mars transfer vehicle carries its own upper cruise stage — floodlit, service tower alongside |
-| 2 | Ignition | 4 | Full vehicle, flame trench lit white, ground glare, plume wider than the stack |
-| 3 | The tower clears | 130 | Vehicle above the tower, pad shrinking, tipping onto its heading |
-| 4 | Max Q | 1.4e4 | Small against deep blue, thin contrail collar, sea far below |
-| 5 | Staging | 6.5e4 | Spent first stage tumbling behind, second stage's plume lit ahead of it |
-| 6 | The sky goes black | 9.5e4 | Stars above a still-blue, visibly curved horizon |
-| 7 | Parking orbit | 2.0e5 | Coasting, Earth's blue limb filling the lower frame, plume out |
-| 8 | One quiet orbit | 2.05e5 | Same altitude, the terminator crossing beneath, city lights on the dark side |
-| 9 | Trans-Mars injection | 2.2e5 | The stage burning again, pulling off the limb; Earth already visibly smaller |
-| 10 | Earth shrinking behind | 1.0e7 | Earth a fat, receding disc below the ship, Moon a small companion point |
-| 11 | Nothing close to anything | 1.0e9 | A small craft, a faint trajectory line, stars — the honest picture of deep space |
-| 12 | A dimmer sun | 3.0e10 | The Sun measurably smaller and cooler-white than at Earth, ship in the foreground |
-| 13 | Crossing Earth's orbit | 1.5e11 | The trajectory line crossing a faint ring marking Earth's own path, both worlds gone to points |
-| 14 | The cruise stage unfolds | 2.2e11 | Solar panels swung out to their full span, catching a noticeably dimmer sun |
-| 15 | A course correction | 3.6e11 | A brief, precise burn — a thin blue flame, no visible effect on the empty backdrop |
-| 16 | Crossing Mars' orbit | 5.0e11 | The trajectory crossing a second faint ring — Mars' own path — with Mars now a bright point ahead |
-| 17 | A point of light | 5.30e11 | An ochre-tinted star, brighter than anything else ahead, no disc yet |
-| 18 | A disc | 5.55e11 | A small hard-edged ochre disc, still smaller than the Moon ever got |
-| 19 | Ochre, and a white cap | 5.590e11 | Mars fills a third of the frame — rust-red dust, a bright polar cap, a hard terminator |
-| 20 | Olympus Mons, Valles Marineris | 5.598e11 | A vast shield volcano on the limb and a canyon system scored across the disc |
-| 21 | Entry interface | MARS_D-1.25e5 | The capsule wrapped in a thin plasma sheath, orange-white, streaming behind |
-| 22 | Peak heating | MARS_D-6.0e4 | The sheath at its brightest and widest, the ship briefly the only visible thing |
-| 23 | Parachute | MARS_D-1.1e4 | A single large canopy open above, deceleration visible in the ground's slowing rush |
-| 24 | Heat shield away | MARS_D-2.0e3 | The shield falling away below, revealing the lander's underside and legs |
-| 25 | Powered descent | MARS_D-1.4e3 | Retro engines lit, a dust plume starting to billow off the ground below |
-| 26 | Touchdown | MARS_D | Engines off, dust settling fast in the thin air, four legs planted on rust-coloured ground |
-| 27 | The first frame | +9 | Rust sky near the sun, a butterscotch band at the horizon, rocks in the foreground |
-| 28 | An evening star | +55 | A figure on ochre ground, dusk sky, Earth a small blue-white point low over the horizon |
+| # | heading | midpoint (what is on screen 45% in) | archetypes | px | hue |
+| --- | --- | --- | --- | --- | --- |
+| 1 | The pad | The stack on the pad, floodlit, service tower alongside, pad buildings and lamp clusters behind it | vehicle, blocks, terrain, backdrop, particleField | vehicle ~500 px tall | amber dusk |
+| 2 | Ignition | Full vehicle, flame trench lit white, ground glare, plume wider than the stack | vehicle+plume, terrain, blocks, backdrop | plume ~380 px | white-hot amber |
+| 3 | The tower clears | Vehicle above the tower, pad shrinking below, tipping onto its heading | vehicle, terrain, cloudDeck, backdrop | vehicle ~115 px | pale gold |
+| 4 | Max Q | A small vehicle against a lit cloud deck, coast far below, the sky above already going dark | vehicle, cloudDeck, terrain, backdrop, particleField | vehicle ~70 px, deck fills lower half | steel blue over white |
+| 5 | Staging | Spent first stage tumbling behind in a debris cone, retro flash, second stage lit ahead of it | vehicle (shed), particleField, glowSphere, terrain | flash ~160 px | white on near-black |
+| 6 | The sky goes black | Stars above a still-blue, visibly curved horizon | planet, particleField, backdrop | limb ~150 deg of frame | black over cyan |
+| 7 | Parking orbit | Coasting, Earth's lit limb filling the lower frame | planet, vehicle, particleField | Earth ~93 deg | ocean blue |
+| 8 | One quiet orbit | The terminator crossing beneath, city lights strung along the dark coastlines | planet (night), vehicle, particleField | Earth ~93 deg | blue-black + sodium |
+| 9 | Trans-Mars injection | The stage burning again and pulling off the limb, Earth already visibly smaller | vehicle+plume, planet, particleField | Earth ~80 deg, plume ~200 px | blue + engine amber |
+| 10 | Earth shrinking behind | Earth a receding disc at frame left, the Sun anchored above it, the stack at frame right | planet, glowSphere, vehicle, backdrop, particleField | Earth ~98 px | cold blue |
+| 11 | Nothing close to anything | A small craft, a faint trajectory line, the galactic band and stars - the honest picture of deep space | vehicle, trajectory, backdrop, particleField | Earth ~9 px, craft ~430 px | indigo |
+| 12 | A dimmer sun | The Sun measurably smaller and cooler than at Earth, craft in the foreground, band swung across the frame | glowSphere, vehicle, backdrop, particleField | Sun glare ~330 px | violet-grey |
+| 13 | Crossing Earth's orbit | The transfer arc crossing a faint blue ring - Earth's own orbit - both worlds gone to points | trajectory x2, vehicle, backdrop, particleField | ring ~10 units radius | dusty violet |
+| 14 | The cruise stage unfolds | Solar panels swinging out to their full span, catching a sun already visibly dimmer | vehicle (panels/deploy), backdrop, particleField | panel span ~520 px | navy on rust |
+| 15 | A course correction | A brief, precise burn - a thin flame off the cruise stage against a backdrop that does not change | vehicle+plume, trajectory, backdrop | flame ~90 px | rust + blue flame |
+| 16 | Crossing Mars' orbit | The arc crossing a second faint ring, Mars' own path, with an ochre point sitting almost on the crossing | trajectory x2, glowSphere, vehicle, backdrop | Mars point ~20 px | ochre |
+| 17 | A point of light | An ochre point, brighter than anything else ahead, no disc yet - held about halfway to the frame's right edge | glowSphere, planet, vehicle, backdrop | Mars ~15 px | ochre on rust |
+| 18 | A disc | A small hard-edged ochre disc off to frame right, the cruise stage in the near foreground | planet, vehicle, backdrop, particleField | Mars ~133 px | rust |
+| 19 | Ochre, and a white cap | Mars filling the right half - rust dust, a bright polar cap, a hard terminator | planet, vehicle, backdrop | Mars ~404 px | iron oxide |
+| 20 | Olympus Mons, Valles Marineris | Mars cropped by the right edge, surface relief resolving across the disc | planet, vehicle, backdrop | Mars ~738 px | deep rust |
+| 21 | Entry interface | The capsule in a thin plasma sheath, orange-white, streaming behind it over rust ground | glowSphere, particleField, terrain, backdrop | sheath ~260 px | orange-white |
+| 22 | Peak heating | The sheath at its brightest and widest, briefly the only bright thing in frame | glowSphere, particleField, terrain, backdrop | sheath ~330 px | white-orange |
+| 23 | Parachute | A single large canopy open above the lander, ground detail resolving beneath | blob, vehicle, terrain, backdrop | canopy ~320 px | bone on butterscotch |
+| 24 | Heat shield away | The shield tumbling out to one side above the horizon, the lander's underside and legs revealed | blob, vehicle, terrain, backdrop | shield ~190 px | charred rust |
+| 25 | Powered descent | Retro engines lit, dust starting to billow off the ground below | vehicle+plume, particleField, terrain | lander ~100 px | amber on rust |
+| 26 | Touchdown | Engines off, dust settling fast in the thin air, four legs planted on rust ground | vehicle, particleField, terrain, backdrop | lander ~13% of width | rust |
+| 27 | The first frame | Rust sky near the sun, a butterscotch band at the horizon, boulders in the foreground | rocks, terrain, backdrop | near boulder ~400 px | butterscotch |
+| 28 | An evening star | A figure on ochre ground at dusk, Earth a small blue-white point low over the horizon | silhouette, glowSphere, rocks, terrain, backdrop | Earth ~10 px | dusk mauve |
+
+Each beat's own axis mark is in the segment table in section 1 and in
+`beats.js`, which are the only two places a beat's position is written down.
 
 Copy is factual and quiet, the same register as `earth-to-moon`: no "giant
 leap" language. Every checkable number (43% of Earth's sunlight at Mars, a
@@ -146,19 +149,44 @@ metres, `scaleAt(u) = plog(SCALE, u) / 4`, camera stands ~6 units out.
 ### The origin is the spacecraft
 
 Earth's centre sits at `y = -(R_EARTH + d)` for the outbound leg; Mars'
-centre sits at `y = +(MARS_D - R_MARS - d)` for the whole journey — both
+centre sits at `y = +((MARS_D - d) + R_MARS)` for the whole journey — both
 signed distances from the ship, both on the world Y axis, recomputed every
 frame from the axis value, exactly as `earth-to-moon` does it for the Earth–
 Moon pair. Free-flight framing reuses the inherited rule directly:
 
 ```
-frame = 0.571 × min(R_EARTH + d, MARS_D - R_MARS - d)
+frame = 0.6 × (distance to the centre of the NEARER world)
 ```
 
-frames the nearer body at ~7 units, continuous through the geometric midpoint
-(d ≈ 2.80e11 m). This is the SAME law `earth-to-moon` derived — it is a
-property of "origin at the spacecraft, camera six units out," not of the
-Earth–Moon pair specifically, which is why it transfers verbatim.
+frames that world at ~6.7 units, and its drawn diameter is then
+
+```
+px ≈ 7500 · R / sqrt(16 c² + 38.4 F²)   →   1370 · R / c   at F = 0.6 c
+```
+
+on a 900-tall frame at 55° vertical. This is the SAME law `earth-to-moon`
+derived — a property of "origin at the spacecraft, camera six units out", not
+of any particular pair of bodies.
+
+**MARS' CENTRE IS `alt + R_MARS`, NOT `alt - R_MARS`.** The first build had the
+sign wrong, which put the planet's centre a full radius short and made its
+surface arrive 6,780 km early. `MARS_D` is the distance to the SURFACE — the
+axis ends with the lander standing on it — so the centre is one radius further
+on. Check whether an axis quantity is an altitude or a centre distance before
+placing a body at it.
+
+**The approach marks are chosen from this law, backwards.** Beats 17–20 promise
+a point, a disc, a capped ochre world and resolved surface relief; under
+`1370 · R / c` those are altitudes of 3.53e8, 3.46e7, 8.2e6 and 3.24e6 m, and
+each beat's segment is sized so its own 45% MIDPOINT lands there. The previous
+marks put those midpoints 30 million to 200 thousand kilometres out with the
+frame pinned at 4.2e5 m, so all four rendered as identical black rectangles.
+
+**Mars is held ~20° off the boresight, not centred.** `MARS_AIM` weights the aim
+at about half of Mars' own offset, which under the 90° cruise roll puts the
+planet just over halfway to the frame's RIGHT edge — so it grows ACROSS the
+frame from the direction of travel rather than swelling into the middle of it,
+and the aim stays shallow enough to keep the galactic band in the picture.
 
 ### Solving the empty-cruise risk (the biggest risk in this journey)
 
@@ -189,32 +217,34 @@ discovered in review:
 
 | D (m) | frame (m) | subject, and how big it is |
 | --- | --- | --- |
-| 1 | 140 | 130 m vehicle ≈ 55% of frame height |
+| 1 | 140 | 130 m vehicle ~55% of frame height |
 | 4 | 160 | held: plume needs room below the stack |
 | 130 | 460 | vehicle ~115 px, tower alongside |
-| 1.4e4 | 5.2e4 | frame ≈ 3.7 × altitude — horizon held steady |
-| 6.5e4 | 2.6e5 | Earth's limb enters the band; ~150° of curved floor |
-| 9.5e4 | 5.0e5 | limb ~150°, terrain fully faded |
-| 2.0e5 | 3.8e6 | Earth radius 6.7 units at 7.0 units down → ~93° |
-| 2.2e5 | 3.9e6 | held across TMI |
-| 1.0e7 | 1.9e7 | Earth ~24° — "fits the window" |
-| 1.0e9 | 5.8e8 | Earth 0.9°, Mars a point 300+ units off, ship at k≈3 (0.16 frames) |
-| 3.0e10 | 1.5e8 | Sun subtends 0.53° here vs 0.53° AT EARTH — this is the frame where the SUN itself, not a planet, is sized and dimmed as the subject |
-| 1.5e11 | 8.6e10 | the geometric peak is close; ring crossing at true scale |
-| 2.2e11 | 1.6e11 | panels deployed to their true span, ~0.16 frames |
-| 3.6e11 | 1.4e11 | course-correction flame small and precise |
-| 5.0e11 | 6.0e10 | Mars ring crossing |
-| 5.30e11 | 6.4e9 | Mars a point — sub-pixel disc, drawn as a bright dot |
-| 5.55e11 | 2.5e8 | Mars ~31° — a hard-edged disc, still smaller in this frame than the Moon ever got in `earth-to-moon`'s (frame is wider here — Mars is a smaller body seen from farther) |
-| 5.590e11 | 1.9e6 | Mars fills a third of frame, cap and terminator resolve |
-| 5.598e11 | 4.2e5 | Olympus Mons on the limb, Valles Marineris scored across the disc |
+| 1.4e4 | 5.2e4 | lit cloud deck fills the lower frame, vehicle ~70 px |
+| 6.5e4 | 2.6e5 | Earth's limb enters the band |
+| 9.5e4 | 5.0e5 | limb ~150 deg, terrain fully faded |
+| 2.0e5 | 3.8e6 | Earth radius 6.7 units at 6.7 units off |
+| 2.2e5 | 3.95e6 | 0.6 x (R_EARTH + d) takes over here, continuous |
+| 1.0e7 | 9.82e6 | Earth 533 px - the departure begins |
+| 7.9e7 | 5.6e7 | Earth 98 px (beat 10's own midpoint) |
+| 1.0e9 | 6.04e8 | Earth 9 px, handing to the `earth-point` glow |
+| 3.0e10 | 1.1e10 | the Sun, sized and dimmed by real flux, is the subject |
+| 1.5e11 | 4.6e10 | Earth's orbital ring ~10 units radius, crossed |
+| 2.2e11 | 6.2e10 | panels deployed to their full span |
+| 3.6e11 | 7.6e10 | course-correction flame, small and precise |
+| 5.0e11 | 4.0e10 | Mars' ring crossing; Mars still a placed point |
+| MARS_D-5.97e8 | 3.60e8 | 0.6 x marsCentre takes over; Mars 15 px at midpoint |
+| MARS_D-5.46e7 | 3.50e7 | Mars 133 px at midpoint - a hard-edged disc |
+| MARS_D-1.016e7 | 8.10e6 | Mars 404 px at midpoint - cap and terminator resolve |
+| MARS_D-5.79e6 | 5.50e6 | Mars 738 px at midpoint, cropped by the right edge |
+| MARS_D-6.0e5 | 1.00e6 | the planet mesh hands over to the terrain stack |
 | MARS_D-1.25e5 | 3.0e5 | entry interface, thin plasma sheath forming |
 | MARS_D-6.0e4 | 6.0e4 | peak heating, sheath at its widest |
 | MARS_D-1.1e4 | 9.0e3 | canopy open, ground detail resolving |
 | MARS_D-1.4e3 | 7.0e2 | dust plume beginning |
-| MARS_D | 45 | lander at true ~6 m ≈ 13% of visible width |
+| MARS_D | 45 | lander at true ~6 m ~13% of visible width |
 | +9 | 1.4 | a boot/rock scene, ~150 px foreground detail |
-| +55 | 16 | figure at eye level, Earth drawn at true angular size (~10 arcsec at Mars, a POINT of light, not a disc — the composition, not the geometry, is what sells "evening star": see camera notes) |
+| +55 | 16 | figure at eye level, Earth a POINT of light |
 
 ### Why the vehicle is not always drawn at true size
 
@@ -257,31 +287,64 @@ layer). Earth→Mars has the same structural problem twice over, more sharply:
 beat that only ever needed a vertical aim (the ascent, the descent, most of
 the cruise) is unaffected.
 
-### Table (key anchors; full tables in `index.js`)
+### Where the tables live, and why they moved
 
-| u anchor | CAM | LOOK_Y | LOOK_X | PAN | AZIMUTH | why |
-| --- | --- | --- | --- | --- | --- | --- |
-| D=1 | [0, 0.95, 6.2] | 0.28 | 0 | 0.6 | -22 | three-quarter view of a taller stack |
-| D=130 | [0, 0.5, 6.0] | 0.15 | 0 | 0.9 | -14 | levelling as ground drops |
-| D=1.4e4 | [0, 0.25, 6.0] | 0.10 | 0 | 1.0 | -8 | high, thin sky |
-| D=6.5e4 | [0, 0.30, 6.1] | 0.05 | 0 | 1.0 | -4 | staging needs width |
-| D=2.0e5 | [0, 0.40, 6.2] | 0.35 | 0 | 0.9 | 0 | off the limb |
-| D=1.0e7 | [0, 0.15, 6.3] | -0.9 | 0 | 1.0 | 6 | Earth low behind, ship ahead |
-| D=1.0e9 | [0, 0.0, 6.4] | -1.1 | 0 | 1.0 | 8 | the empty middle; free parallax |
-| D=3.0e10 | [0, 0.0, 6.4] | 0 | 2.6 | 0.9 | 10 | the Sun is OFF-AXIS: `LOOK_X` swings to it |
-| D=1.5e11 | [0, 0.0, 6.4] | 0 | 0 | 1.0 | 10 | ring crossing, centred on the path |
-| D=2.2e11 | [0, 0.0, 6.3] | 0 | 0 | 0.7 | 6 | ship centred, panels need width |
-| D=5.30e11 | [0, 0.1, 6.2] | 4.6 | 0 | 1.0 | 2 | swinging onto Mars ahead |
-| D=5.598e11 | [0, 0.2, 6.0] | 4.2 | -1.4 | 0.9 | 0 | Olympus Mons on the LIMB — off-axis |
-| MARS_D-1.25e5 | [0, 0.3, 6.0] | -0.2 | 0 | 0.9 | 0 | entry, looking down-forward |
-| MARS_D | [0, 1.3, 6.0] | -0.1 | 0 | 0.7 | 0 | standing off from the lander |
-| +9 | [0, 1.2, 5.4] | -1.6 | 0 | 0.4 | 0 | over the rock, looking down |
-| +55 | [0, 0.11, 6.0] | 0.30 | -2.1 | 0.9 | 0 | eye level; Earth is LOW and to one side — `LOOK_X` is the whole point of this beat |
+Every camera table, the frame law and both planets' positions are now in
+`plan.js`, imported by BOTH `index.js` and `layers.js`. That is not tidiness.
+The single most expensive defect this journey recorded was a subject placed at
+one authored world direction while the camera was aimed at a second,
+independently-authored direction that was supposed to coincide with it: the Sun
+at `[f*0.85, 0, -f*2.08]` against a `LOOK_X` held at 2.6, the spacecraft at
+exactly `[0,0,0]`, Mars at a true offset five hundred frame-widths off the
+boresight. Eleven consecutive beats measured 0.004-0.15 occupancy because of it.
 
-Camera height reasoning is identical to `earth-to-moon`'s: units scale with
-frame, eye level on Mars is `y ≈ 0.11` at a 16 m frame (1.7 m).
+So:
 
----
+- `LOOK_Y` is **not authored**. It is `EARTH_AIM(u) * earthUnits(u) +
+  MARS_AIM(u) * marsUnits(u)`, and `earthUnits`/`marsUnits` read the same frame
+  table the layers read. The aim cannot drift from the bodies.
+- Anything with no renderable true position - the Sun always, Earth and Mars
+  while they are distant points - is placed by `screenAnchoredMeters`, which
+  rebuilds the exact basis `aimCamera` constructs (position, azimuth, look,
+  **roll** and pan) and returns a world position for a camera-space
+  `{right, up, ahead}`. One formula, not two that have to agree.
+- `pointPositionMeters` slides a body continuously between its true offset and
+  that anchor, crossing over as the true position comes inside the frame, so a
+  placed point never becomes a second copy of the disc it hands over to.
+
+`screenAnchoredMeters` is `voyager/plan.js`'s helper with a roll term added, and
+it is kept LOCAL to this journey rather than promoted into `src/kit/`. Promoting
+it would make `voyager` depend on a module edited for Mars - a shared-code
+change obliging `--sweep`, to solve one journey's placement problem.
+
+### ROLL: the travel axis runs ACROSS the frame
+
+The world axis is +y because during the ascent and the descent "down" is not
+arbitrary. So the CAMERA turns instead: `ROLL` goes to 90 degrees once the stack
+is clear of Earth and back to 0 as Mars becomes the ground. Earth is then at
+frame LEFT, Mars at frame RIGHT, and the trajectory runs the same direction the
+ribbon does.
+
+It also **breathes** - about 12 degrees either side on each cruise beat's own
+midpoint, alongside alternating 1.8 units of camera height and 30 degrees of
+azimuth. That is authored against a measurement: `adjacent` compares 16 x 10
+cell AVERAGES, so in a frame that is mostly black it barely notices small bright
+objects moving. Beats 11-20 sat at 1.3-2.9 against a 6.0 bar even after the
+hero, the Sun and both planets were fixed and the frames were genuinely no
+longer empty. Rolling the camera rotates every pixel about the view axis; the
+screen-anchored hero and Sun do not move, because they are derived from the
+rolled basis.
+
+### The deep sky
+
+A full-frame `backdrop` shell through the whole interplanetary stretch, running
+a palette arc - cold blue leaving Earth, violet-grey through the middle, rust as
+Mars' orbit comes up - with a bright band at the world y = 0 plane that the
+camera-height swings sweep across the frame. Both halves are honest: the
+galactic plane is genuinely bright to a camera with no atmosphere in front of
+it, and the zodiacal light is a real broad glow along the ecliptic. It is
+deliberately kept dark; the first pass at it was a rust wash bright enough to
+read as being inside a nebula.
 
 ## 5. Archetype plan
 
