@@ -353,8 +353,13 @@ export function makeLayers(uAt, dAt) {
         colorA: 0xffffff,
         colorB: 0xf0d8c0,
         colorMode: 'random',
-        size: 2.2,
-        maxSize: 6,
+        // Moving the field from 5 frames out to 8 costs every sprite 37% of its
+        // apparent size, and this field is most of what is in eleven cruise
+        // frames — so the size buys back what the move spends. Measured across
+        // the journey: fixing the sky cost 0.015 mean occupancy, and this and
+        // the zodiacal field's own compensation return it.
+        size: 3.1,
+        maxSize: 7,
         // NO TWINKLE. Twinkle is refraction through moving air; the first ten
         // kilometres of this journey are the only place in it where a star could
         // honestly do that, and the field only reaches full strength at 36 km.
@@ -440,8 +445,8 @@ export function makeLayers(uAt, dAt) {
         // apparent brightness the move costs, and nothing else about the field
         // changes. Without this the honest fix would have been paid for in
         // occupancy on the eleven cruise beats that have least to spare.
-        size: 5.4,
-        maxSize: 7,
+        size: 6.2,
+        maxSize: 9,
         // NO SPIN. `spin` is a real geometric rotation on the wall clock, so the
         // whole warm disc was turning at 0.02 rad/s — about a degree a second —
         // under a starfield that was not.
@@ -452,7 +457,7 @@ export function makeLayers(uAt, dAt) {
         // dust in the ecliptic and not a haze filling the sky — concentrating
         // it is what lets it be a visible warm structure without becoming a
         // global tint over everything.
-        opacity: ({ u }) => band(dAt(u), 3.0e6, 2.0e7, 5.2e11, MARS_D - 4.0e6) * 0.42 * Math.sqrt(sunFlux(dAt(u))),
+        opacity: ({ u }) => band(dAt(u), 3.0e6, 2.0e7, 5.2e11, MARS_D - 4.0e6) * 0.54 * Math.sqrt(sunFlux(dAt(u))),
       })),
 
     // ======================================================================
@@ -1375,7 +1380,15 @@ export function makeLayers(uAt, dAt) {
           return [0.16 + 0.10 * k, 0.4 * k, -0.20 + 0.16 * k];
         },
         respectBand: false,
-        opacity: ({ u }) => band(dAt(u), MARS_D - 1.1e4, MARS_D - 9.0e3, MARS_D - 2.4e3, MARS_D - 1.6e3),
+        // AND IT IS STILL FLYING WHEN THE SHIELD GOES. The fade used to run out
+        // between 2.4 and 1.6 km, and beat 24's own sample is at 1.73 km — so
+        // the beat about jettisoning the heat shield showed a canopy at 16%
+        // opacity, which a blind reviewer called "extremely faint and difficult
+        // to distinguish from the haze". That is also wrong about the event:
+        // a shield is released while the vehicle is hanging on the chute, and
+        // the chute goes later, with the backshell, when the descent engines
+        // take over. Full through the jettison, gone by powered descent.
+        opacity: ({ u }) => band(dAt(u), MARS_D - 1.1e4, MARS_D - 9.0e3, MARS_D - 1.4e3, MARS_D - 900),
       })),
 
     // The discarded heat shield, falling away below and tumbling. Beats 23, 24
@@ -1395,7 +1408,14 @@ export function makeLayers(uAt, dAt) {
       cruiseStage({
         spanMeters: ({ rebase }) => rebase.frameMeters() * 0.30,
         lightDir: SUN_DIR,
-        ambient: 0.34,
+        // A DARK OBJECT AGAINST A BRIGHT BROWN SKY IS A HOLE, NOT A SHIELD.
+        // At 0.34 the tiled face read as a silhouette and a blind reviewer
+        // could not see its rim or its surface at all. The Martian sky in these
+        // beats is genuinely bright and genuinely brown, so the object in front
+        // of it has to be lifted to separate from it — this is the "empty
+        // frame" failure inverted, a subject that measures as present and
+        // carries no information.
+        ambient: 0.52,
         disc: null,
         arrays: null,
         antenna: null,
@@ -1412,8 +1432,14 @@ export function makeLayers(uAt, dAt) {
           diameter: 1.0,
           coneAngleDeg: 70, noseRadius: 0.16, shellThickness: 0.035,
           tileRings: 6, tileSectors: 20, tileGap: 0.006,
-          tileColorA: 0x77543f, tileColorB: 0x402c24, jointColor: 0x241a15,
-          interiorColor: 0x15181b, interiorRibs: 8, ribColor: 0x333941,
+          tileColorA: 0x8a6349, tileColorB: 0x664636, tileColorC: 0x785440,
+          jointColor: 0x33241b,
+          // The cavity is DARK, not black. At 0x15181b under this ambient the
+          // interior rendered as a hole cut in the sky and the backing ribs
+          // could not be seen at all — which is the blowout failure mode
+          // inverted, and just as illegible. It has to read as a structure in
+          // shadow.
+          interiorColor: 0x2c313a, interiorRibs: 8, ribColor: 0x525a66,
           rimColor: 0xc0794a, rimScallops: 24, rimScallop: 0.018,
         },
         // Discarded hardware TUMBLES. A rigid attitude reads as a second working
@@ -1427,7 +1453,20 @@ export function makeLayers(uAt, dAt) {
         // is the difference between a tumbling dish and a spinning disc.
         attitude: ({ u }) => {
           const s = clamp01((MARS_D - 2.0e3 - dAt(u)) / -1.4e3);
-          return [0.55 + s * 3.4, 0.30 + s * 1.9, 0.35 + s * 2.1];
+          // THE PITCH WAS THE WRONG SIGN, AND HAD BEEN SINCE THE BEAT EXISTED.
+          // The ablative face is the archetype's local -y. Carried through
+          // Euler XYZ, a POSITIVE pitch swings it to -z — away from a camera
+          // that sits on +z — so every frame of this beat has always shown the
+          // BACK of the shield. Nobody could tell, because the old version was
+          // one brown DoubleSide skin with its "tile" tori visible through it:
+          // the wooden plate a reader complained about was the rear face all
+          // along. Now that the two sides are genuinely different objects, the
+          // sign matters, and it is checked rather than guessed — at the beat's
+          // own 45% sample this puts the face normal at roughly (0.38, -0.13,
+          // 0.91), a three-quarter view of the tiled ablator with the scalloped
+          // rim reading along one edge, and carries on turning until the dark
+          // interior comes round as it falls away.
+          return [-0.20 - s * 2.6, -0.20 - s * 0.7, 0.35 + s * 0.25];
         },
         offsetMeters: ({ u, rebase }) => {
           const f = rebase.frameMeters();

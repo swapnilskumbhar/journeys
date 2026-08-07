@@ -135,7 +135,18 @@ export async function blindReview({ dir, ledger = null, stage = 'review', effort
   const content = [textPart(`${files.length} frames follow, in order.`)];
   for (const f of files) {
     const shrunk = join(small, `${f.replace(/\.[^.]+$/, '')}.jpg`);
-    if (!existsSync(shrunk)) run(['-i', join(dir, f), '-vf', `scale=${REVIEW_WIDTH}:-2`, '-q:v', '4', shrunk], 'shrink frame');
+    // THE CACHE IS KEYED ON THE FRAME, NOT ON ITS NAME. `!existsSync(shrunk)`
+    // alone is the same defect `review.mjs`'s own provenance guard was written
+    // against, one layer further down: that guard checks the FRAMES against the
+    // artefact, and is satisfied by a fresh capture — but the capture writes
+    // `beat-23.png` over `beat-23.png`, so this sibling directory still held
+    // yesterday's JPEG and the model was shown the journey as it was before the
+    // fix. It came back describing a parachute that had been replaced, scored
+    // it, and diffed it, and every number in that report was about a build that
+    // no longer existed. Re-shrink whenever the source is newer.
+    if (!existsSync(shrunk) || statSync(join(dir, f)).mtimeMs > statSync(shrunk).mtimeMs) {
+      run(['-i', join(dir, f), '-vf', `scale=${REVIEW_WIDTH}:-2`, '-q:v', '4', '-y', shrunk], 'shrink frame');
+    }
     bytes += statSync(shrunk).size;
     content.push(textPart(`\n--- ${f} ---`));
     content.push(imagePart(shrunk, 'image/jpeg'));

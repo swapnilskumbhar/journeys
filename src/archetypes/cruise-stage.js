@@ -45,7 +45,8 @@ import * as THREE from 'three';
 //     antenna:    { diameter, depth, at, tilt, color },
 //     backshell:  { diameter, topDiameter, height, at, color },
 //     heatShield: { diameter, at, coneAngleDeg, noseRadius, shellThickness,
-//                   tileRings, tileSectors, tileGap, tileColorA, tileColorB,
+//                   tileRings, tileSectors, tileGap,
+//                   tileColorA, tileColorB, tileColorC,
 //                   jointColor, interiorColor, interiorRibs, ribColor,
 //                   rimColor, rimScallops, rimScallop, depth (override) },
 //     separate,                          // 0..1 — slides the aeroshell away
@@ -546,8 +547,22 @@ export function cruiseStage({
     }
 
     // --- the ablative face, in tiles ---------------------------------------
-    const tileA = mat(hs.tileColorA ?? hs.color ?? 0x68483a, { roughness: 0.9, metalness: 0.08 });
-    const tileB = mat(hs.tileColorB ?? 0x3c2923, { roughness: 0.94, metalness: 0.06 });
+    // THREE VALUES, CHOSEN BY A HASH, NOT BY PARITY. Alternating two colours on
+    // (ring + sector) is a chessboard wrapped round a disc, and on a circular
+    // face that reads as a DARTBOARD — a decorative pattern, which is the same
+    // failure the concentric grooves were. A hash over the tile's own indices
+    // scatters the char into blotches, and three closely-spaced values rather
+    // than two far-apart ones keep it reading as one material that has been
+    // unevenly burned rather than as two materials laid in a pattern.
+    const tileMats = [
+      mat(hs.tileColorA ?? hs.color ?? 0x68483a, { roughness: 0.88, metalness: 0.08 }),
+      mat(hs.tileColorB ?? 0x54392e, { roughness: 0.92, metalness: 0.07 }),
+      mat(hs.tileColorC ?? 0x5f4535, { roughness: 0.94, metalness: 0.06 }),
+    ];
+    const charAt = (s, j) => {
+      const h = Math.sin(s * 12.9898 + j * 78.233) * 43758.5453;
+      return tileMats[Math.floor((h - Math.floor(h)) * 3) % 3];
+    };
     const aStep = (Math.PI * 2) / secs;
     const bandGeo = [];
     for (let j = 0; j < rings; j++) {
@@ -558,12 +573,7 @@ export function cruiseStage({
     }
     for (let s = 0; s < secs; s++) {
       for (let j = 0; j < rings; j++) {
-        // DETERMINISTIC CHAR. Alternating on (ring + sector) gives a checker;
-        // adding a third term breaks the checker into blotches, which is what
-        // an ablator that has been through an entry actually looks like and
-        // what stops the face reading as a chessboard.
-        const dark = ((s + j + ((s * 3 + j * 5) % 3 === 0 ? 1 : 0)) % 2) === 0;
-        const mesh = new THREE.Mesh(bandGeo[j], dark ? tileB : tileA);
+        const mesh = new THREE.Mesh(bandGeo[j], charAt(s, j));
         mesh.rotation.y = s * aStep;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
