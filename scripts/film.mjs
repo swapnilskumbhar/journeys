@@ -3,7 +3,7 @@
 //   node scripts/film.mjs <id> [--dry-run] [--rewrite] [--from=<stage>]
 //                              [--fps=24] [--port=5175] [--chrome=ribbon|none|full]
 //                              [--score=plan|prompt] [--no-score] [--no-sfx]
-//                              [--karaoke] [--keep-frames]
+//                              [--karaoke] [--keep-frames] [--note=<text>|@<file>]
 //
 // Stages run in order and stop at the first failure, cheapest first, because
 // the render costs ~15 minutes and is meaningless if the script is broken.
@@ -67,6 +67,11 @@ const wantScore = !args.includes('--no-score');
 const wantSfx = !args.includes('--no-sfx');
 const karaoke = args.includes('--karaoke');
 const keepFrames = args.includes('--keep-frames');
+// An editorial note for the director, from someone who has watched a cut.
+// `--note=@path` reads it from a file, because anything long enough to be
+// worth saying does not survive a Windows command line intact.
+const noteArg = flag('note', '');
+const note = noteArg.startsWith('@') ? readFileSync(resolve(noteArg.slice(1)), 'utf8') : noteArg;
 const width = Number(flag('width', dryRun ? 320 : 1920));
 const height = Number(flag('height', dryRun ? 180 : 1080));
 // Resume from a stage, for iterating on the back half without re-rendering.
@@ -126,7 +131,7 @@ try {
     server = await ensureServer(port);
     const ok = await run(NODE, ['scripts/shots.mjs', id, paths.blind, String(port), '--blind']);
     if (!ok) throw new Error('blind capture failed');
-    await writeScript({ id, blindDir: paths.blind, out: paths.film, ledger, log: (m) => console.log(`  ${m}`) });
+    await writeScript({ id, blindDir: paths.blind, out: paths.film, note, ledger, log: (m) => console.log(`  ${m}`) });
     return true;
   });
 

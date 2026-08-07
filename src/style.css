@@ -183,12 +183,29 @@ body {
 .ribbon-tick.is-past { background: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ribbon-tick.is-active { height: 16px; margin-top: -8px; background: var(--accent); }
 
+/* THE READOUT MUST NOT RESIZE THE TRACK BESIDE IT.
+   This element sits next to `.ribbon-track`, which is `flex: 1` — so any change
+   in the readout's own width is taken straight out of the scrub track. With
+   only a `min-width`, a readout that grows as the reader scrubs (earth-to-mars
+   swings from "1 m up · T+0s" to "0.003 AU to Mars · T+259 days", 13 to 29
+   characters) visibly narrows the track under the pointer, and `scroll-check`
+   reports it as a drag that lags by 2%.
+   crust-to-core hit this first and worked around it by switching units so the
+   string stayed short. That is not available to a readout that is deliberately
+   showing two quantities at once, and it was always the weaker fix: `flex-basis`
+   with `flex-grow: 0` and `flex-shrink: 0` pins the column outright, so no
+   formatter anywhere can move the track again. */
 .ribbon-readout {
   font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
   font-size: 0.8rem;
-  min-width: 12rem;
+  flex: 0 0 19rem;
   text-align: right;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Digits share one advance width, so the string does not jitter as numbers
+     tick over even within a single unit. */
+  font-variant-numeric: tabular-nums;
 }
 .ribbon-value { color: var(--ink); }
 .ribbon-axis { color: var(--ink-dim); margin-left: 0.6rem; }
@@ -242,6 +259,8 @@ body {
   .journey-hero, .home-hero { padding: 16vh 1.5rem 0; }
   .beat-panel { left: 1.25rem; right: 1.25rem; width: auto; }
   .ribbon { padding: 0 1.25rem; gap: 0.9rem; }
-  .ribbon-readout { min-width: 0; font-size: 0.72rem; }
+  /* Narrower column on small screens, but still PINNED — `flex: 0 0` is the
+     property that keeps the track still, so it must survive the breakpoint. */
+  .ribbon-readout { flex: 0 0 11rem; font-size: 0.72rem; }
   .back-link { left: 1.25rem; }
 }

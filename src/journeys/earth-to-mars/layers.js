@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import {
   particleField, glowSphere, planet, terrain, blocks, backdrop, silhouette,
   vehicle, trajectory, blob, rocks, cloudDeck, tower, cruiseStage, entrySheath, water,
@@ -126,11 +127,14 @@ export function makeLayers(uAt, dAt) {
     0,
     plin([[130, 0], [1.2e3, -0.5], [1.0e4, -0.55]], d),
   ];
-  const cruiseAttitude = (u) => [
-    1.28 + 0.30 * Math.sin(u * 5.4),
-    -0.55 + u * 2.2,
-    0.30 + 0.16 * Math.cos(u * 3.7),
-  ];
+  const cruiseAttitude = (u) => {
+    const p = transferProgress(dAt(u));
+    return [
+      0.96 + 0.58 * Math.sin(p * Math.PI * 3.1),
+      -0.82 + p * 3.35 + 0.22 * Math.sin(p * Math.PI * 2),
+      -0.55 + p * 5.1,
+    ];
+  };
   const stackAttitude = (u) => {
     const d = dAt(u);
     const s = cruiseBlend(d);
@@ -160,22 +164,27 @@ export function makeLayers(uAt, dAt) {
   // boresight at trans-Mars injection and put the beat back to a planet with
   // nothing in front of it — the exact defect this pass exists to fix, arrived
   // at from the other direction.
-  const stackRise = (rebase, d) => 0.5 * stackLen(rebase, d) * clamp01((2.5e5 - d) / 1.5e5);
+  const stackRise = (rebase, d) => {
+    const len = stackLen(rebase, d);
+    const centred = 0.5 * len * clamp01((2.5e5 - d) / 1.5e5);
+    // On the pad the engine bells stand above a raised mobile-launcher deck:
+    // deck elevation plus the hold-down pylons. This leaves daylight below the
+    // bells instead of planting them on the terrain. The lift disappears after
+    // tower clearance, when there is no longer fixed structure under the ship.
+    const mountLift = len * 0.180 * clamp01((1.2e3 - d) / 900);
+    return centred + mountLift;
+  };
 
+  const stackAxisEuler = new THREE.Euler(0, 0, 0, 'XYZ');
+  const stackAxisPoint = new THREE.Vector3();
   const onStackAxis = (k, rebase, u) => {
-    const [rx, ry, rz] = ascentAttitude(dAt(u));
-    let x = 0;
-    let y = k * stackLen(rebase, dAt(u));
-    let z = 0;
-    let c = Math.cos(rx); let s = Math.sin(rx);
-    [y, z] = [y * c - z * s, y * s + z * c];
-    c = Math.cos(ry); s = Math.sin(ry);
-    [x, z] = [x * c + z * s, -x * s + z * c];
-    c = Math.cos(rz); s = Math.sin(rz);
-    [x, y] = [x * c - y * s, x * s + y * c];
+    const d = dAt(u);
+    const [rx, ry, rz] = ascentAttitude(d);
+    stackAxisEuler.set(rx, ry, rz);
+    stackAxisPoint.set(0, k * stackLen(rebase, d), 0).applyEuler(stackAxisEuler);
     // The vehicle rotates about its own centre and is THEN translated, so the
     // rise is added after the rotation — same order the archetype applies.
-    return [x, y + stackRise(rebase, dAt(u)), z];
+    return [stackAxisPoint.x, stackAxisPoint.y + stackRise(rebase, d), stackAxisPoint.z];
   };
 
   // THE STACK'S OWN JOINTS, written down once, in the stack's own unit envelope.
@@ -190,31 +199,55 @@ export function makeLayers(uAt, dAt) {
   // Anything that belongs to one of those joints is placed from this, never from
   // a fraction of the frame — see the staging-effects comment below for what a
   // frame-relative offset cost.
-  const STAGE_JOINT = -0.04;
-  const PAYLOAD_MOUNT = 0.235;
+  const CORE_STAGE_SPAN = 0.46;
+  const UPPER_STAGE_SPAN = 0.25;
+  const PAYLOAD_ADAPTER_SPAN = 0.025;
+  const STAGE_JOINT = -0.5 + CORE_STAGE_SPAN;
+  const PAYLOAD_MOUNT = STAGE_JOINT + UPPER_STAGE_SPAN + PAYLOAD_ADAPTER_SPAN;
   const stageJointMeters = (rebase, u) => onStackAxis(STAGE_JOINT, rebase, u);
+
+  // `vehicle` does not recenter surviving geometry: until shedding begins, the
+  // adapter's top remains at PAYLOAD_MOUNT. Its shed transform then moves the
+  // whole upper assembly down by 1.6 local units, so it must not start while
+  // the TMI engine is still burning. Cutoff is at 3.2e6 m in the throttle table
+  // below; separation starts there and retains the existing completion point.
+  const upperStageShedAt = ({ u }) => plin([
+    [3.2e6, 0], [5.0e6, 0.5], [8.0e6, 1],
+  ], dAt(u));
 
   // THE ENTRY POSE — one derivation for the aeroshell and the plasma around
   // it, so they cannot end up in two places.
   //
-  // THE HALF TURN BETWEEN THEM IS WRITTEN DOWN, NOT DISCOVERED. `cruiseStage`
-  // builds its aeroshell on local -y, because an aeroshell hangs UNDER a cruise
-  // disc; `entrySheath` builds its shock cap on local +y, because a shock stands
-  // off the direction of TRAVEL. Handing both the same attitude therefore puts
-  // them exactly 180° apart — measured, it drew the heat shield above the
-  // backshell with the plasma glowing on the wrong face, an aeroshell entering
-  // an atmosphere backwards. One tilt, one stated π, and the relationship
-  // cannot drift.
+  // `cruiseStage` builds its heat-shield face toward local -y while
+  // `entrySheath` builds its shock cap toward local +y, so the sheath needs one
+  // half-turn about local x. That turn must be composed AFTER the complete
+  // aeroshell attitude. Adding π to the Euler pitch inserts it before yaw and
+  // roll, flipping the frame those later rotations use and separating the
+  // shock from the windward face whenever either angle is non-zero.
   const entryTilt = (u) => {
-    // The entry flight-path angle, off vertical: descending at a slant rather
-    // than dropping straight down, steepening slightly through the corridor.
-    const k = clamp01((MARS_D - 3.0e4 - dAt(u)) / 9.0e4);
-    return [-0.30 - 0.10 * k, 0, 0.22];
+    // Entry interface begins in a shallow bank; increasing dynamic pressure
+    // then rolls and pitches the same aeroshell hard onto its windward face.
+    // The large attitude change is keyed to altitude, so interface and peak
+    // heating cannot sample as the same silhouette.
+    const altitude = MARS_D - dAt(u);
+    const k = clamp01((1.25e5 - altitude) / 1.0e5);
+    return [-0.18 - 0.62 * k, 0.10 + 0.35 * k, 0.38 - 0.42 * k];
   };
   const AEROSHELL_ATTITUDE = ({ u }) => entryTilt(u);
+  const entryEuler = new THREE.Euler(0, 0, 0, 'XYZ');
+  const entryQuaternion = new THREE.Quaternion();
+  const sheathQuaternion = new THREE.Quaternion();
+  const sheathEuler = new THREE.Euler(0, 0, 0, 'XYZ');
+  const sheathHalfTurn = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1, 0, 0), Math.PI,
+  );
   const SHEATH_ATTITUDE = ({ u }) => {
     const [pitch, yaw, roll] = entryTilt(u);
-    return [pitch + Math.PI, yaw, roll];
+    entryEuler.set(pitch, yaw, roll);
+    entryQuaternion.setFromEuler(entryEuler);
+    sheathQuaternion.copy(entryQuaternion).multiply(sheathHalfTurn);
+    sheathEuler.setFromQuaternion(sheathQuaternion, 'XYZ');
+    return [sheathEuler.x, sheathEuler.y, sheathEuler.z];
   };
   const entryPose = ({ rebase, u }) => {
     const f = rebase.frameMeters();
@@ -223,13 +256,53 @@ export function makeLayers(uAt, dAt) {
     // sitting on the horizon line where its own glow competes with the lit
     // limb — plus a lateral term that converges on the origin as the lander
     // takes over, so the crossfade lands the two in the same place.
-    return [f * 0.13 * k, f * 0.055 + f * 0.10 * k, -f * 0.04 * k];
+    return [f * 0.13 * k, f * 0.155 * k, -f * 0.04 * k];
   };
 
   // Where the hero holds the frame: lower right, the one corner the copy panel
   // and the ribbon do not own. Written once because the craft, its burn flash
   // and anything else riding with it must all read from it.
-  const HERO_ANCHOR = { right: 1.05, up: -0.62, ahead: 3.0 };
+  const HERO_ANCHOR = { right: 1.05, up: -0.62, ahead: 6.2 };
+
+  // One physical aeroshell, declared once and reused while attached, under the
+  // parachute, and after jettison. Diameter, cone angle, tiles, rim and material
+  // therefore cannot change identity between shots.
+  const ENTRY_BACKSHELL = {
+    diameter: 0.66, topDiameter: 0.28, height: 0.30, color: 0xbfc4cb,
+    seams: 10, seamColor: 0x737b85, seamRadius: 0.008,
+    latches: 10, hatchColor: 0x8f98a3,
+  };
+  const ENTRY_HEAT_SHIELD = {
+    diameter: 0.66,
+    coneAngleDeg: 70, noseRadius: 0.16, shellThickness: 0.035,
+    tileRings: 6, tileSectors: 20, tileGap: 0.006,
+    tileColorA: 0x8a6349, tileColorB: 0x664636, tileColorC: 0x785440,
+    jointColor: 0x33241b,
+    interiorColor: 0x2c313a, interiorRibs: 8, ribColor: 0x525a66,
+    rimColor: 0xc0794a, rimScallops: 24, rimScallop: 0.018,
+    rimTabs: 3, rimTabPhase: 0.18,
+  };
+  const entrySpanMeters = (rebase) => rebase.frameMeters() * 0.26;
+  const landerLengthMeters = (rebase) => Math.max(6, entrySpanMeters(rebase) * 0.72);
+  // `vehicle` puts this leg set's lowest footpad surface at local y = -0.73.
+  // Grounding the centre by that same fraction plants the pads at y = 0.
+  const LANDER_REST_HEIGHT = 0.73;
+  const arrivalBlendAt = (u) => {
+    const altitude = MARS_D - dAt(u);
+    return clamp01((6.0e5 - altitude) / 4.5e5);
+  };
+  const entryHeatAt = (u) => plin([
+    [MARS_D - 1.4e5, 0.08], [MARS_D - 1.0e5, 0.28],
+    [MARS_D - 4.5e4, 1.0], [MARS_D - 3.2e4, 0.90],
+    [MARS_D - 2.4e4, 0.12], [MARS_D - 2.0e4, 0],
+  ], dAt(u));
+  const chuteReleaseOffset = ({ u, rebase }) => {
+    const f = rebase.frameMeters();
+    const s = plin([[MARS_D - 1.55e3, 0], [MARS_D - 850, 1]], dAt(u));
+    return [-f * 0.34 * s, f * 0.20 * s, -f * 0.75 * s];
+  };
+  const heatShieldReleaseAt = (u) =>
+    clamp01((MARS_D - 2.0e3 - dAt(u)) / -9.0e2);
 
   // THE SKY DOES NOT MOVE. All three celestial fields — stars, the galactic
   // band, the zodiacal disc — sit at ONE radius, far enough out that the
@@ -329,12 +402,12 @@ export function makeLayers(uAt, dAt) {
             // flagged a second beat. The band is not competing with the plan;
             // out here it IS most of the picture, and the rings are bright
             // enough drawn brighter rather than by making the sky dimmer.
-            horizon: pick(0x3a4258, 0x3d3c46, 0x453e3c),
+            horizon: pick(0x181c26, 0x1b1b20, 0x211d1c),
             bottom: pick(0x020306, 0x030305, 0x040303),
-            bandLift: 0.62 - 0.06 * k,
+            bandLift: 0.38 - 0.04 * k,
           };
         },
-        opacity: ({ u }) => band(dAt(u), 6.0e6, 2.4e7, MARS_D - 2.0e6, MARS_D - 4.0e5) * 0.95,
+        opacity: ({ u }) => band(dAt(u), 6.0e6, 2.4e7, MARS_D - 2.0e6, MARS_D - 4.0e5) * 0.46,
       })),
 
     // ======================================================================
@@ -343,11 +416,10 @@ export function makeLayers(uAt, dAt) {
     // ======================================================================
     L('stars', 1.0e4, walked(95), () =>
       particleField({
-        // Dense, because a real sky above the atmosphere is dense, and because
-        // once the rust wash came off the deep sky the stars have to be what
-        // fills the frame instead. Nothing here is invented: this is the count
-        // a dark-adapted eye already gets from the ground, without the air.
-        count: 9000,
+        // Sparse distant points rather than foreground snow. This remains only
+        // a small fraction of the former field, but restores enough fixed stars
+        // to read as a deep sky rather than sensor grain on an empty frame.
+        count: 2400,
         distribution: 'ball',
         seed: 21,
         colorA: 0xffffff,
@@ -358,8 +430,8 @@ export function makeLayers(uAt, dAt) {
         // frames — so the size buys back what the move spends. Measured across
         // the journey: fixing the sky cost 0.015 mean occupancy, and this and
         // the zodiacal field's own compensation return it.
-        size: 3.1,
-        maxSize: 7,
+        size: 1.6,
+        maxSize: 3.5,
         // NO TWINKLE. Twinkle is refraction through moving air; the first ten
         // kilometres of this journey are the only place in it where a star could
         // honestly do that, and the field only reaches full strength at 36 km.
@@ -384,7 +456,7 @@ export function makeLayers(uAt, dAt) {
         // put stars back on the regolith after they had supposedly been fixed.
         // Gone by 150 km, which is while the sky is still only ~40% on.
         opacity: ({ u }) => clamp01((dAt(u) - 1.2e4) / 2.4e4)
-          * clamp01(((MARS_D - dAt(u)) - 1.5e5) / 6.0e4) * 0.85,
+          * clamp01(((MARS_D - dAt(u)) - 1.5e5) / 6.0e4) * 0.38,
       })),
 
     // The galactic band. A ball of stars is uniform noise and reads as grain;
@@ -397,7 +469,7 @@ export function makeLayers(uAt, dAt) {
         // frame, which is what the first pass drew and which reads as a
         // rendering artefact rather than as the galaxy. A band needs real
         // depth and a soft falloff: thicker, wider, dimmer, more of it.
-        count: 17000,
+        count: 2200,
         distribution: 'disk',
         innerRadius: 0.02,
         thickness: 0.55,
@@ -413,14 +485,14 @@ export function makeLayers(uAt, dAt) {
         colorA: 0xd8e2ff,
         colorB: 0xffd2a0,
         colorMode: 'random',
-        size: 2.4,
-        maxSize: 6,
+        size: 1.35,
+        maxSize: 3,
         twinkle: 0,
         radiusMeters: ({ rebase }) => rebase.frameMeters() * CELESTIAL_RADIUS_FRAMES,
         // Same exit as `stars`, and for the same reason — this field is denser
         // (17,000 points) so it speckled the regolith harder than the stars did.
         opacity: ({ u }) => clamp01((dAt(u) - 4.5e4) / 6.0e4)
-          * clamp01(((MARS_D - dAt(u)) - 1.5e5) / 6.0e4) * 0.62,
+          * clamp01(((MARS_D - dAt(u)) - 1.5e5) / 6.0e4) * 0.13,
       })),
 
     // Zodiacal dust — real, and the reason the inner solar system is not black.
@@ -430,11 +502,11 @@ export function makeLayers(uAt, dAt) {
     // the stars. See the note on `CELESTIAL_RADIUS_FRAMES` above.
     L('zodiacal-dust', 3.0e6, MARS_D - 4.0e6, () =>
       particleField({
-        count: 5600,
+        count: 1500,
         distribution: 'disk',
         innerRadius: 0.02,
-        thickness: 0.30,
-        flattenY: 0.16,
+        thickness: 0.14,
+        flattenY: 0.05,
         seed: 33,
         colorA: 0xffe6c0,
         colorB: 0x6a5a48,
@@ -445,8 +517,8 @@ export function makeLayers(uAt, dAt) {
         // apparent brightness the move costs, and nothing else about the field
         // changes. Without this the honest fix would have been paid for in
         // occupancy on the eleven cruise beats that have least to spare.
-        size: 6.2,
-        maxSize: 9,
+        size: 2.1,
+        maxSize: 4,
         // NO SPIN. `spin` is a real geometric rotation on the wall clock, so the
         // whole warm disc was turning at 0.02 rad/s — about a degree a second —
         // under a starfield that was not.
@@ -457,7 +529,7 @@ export function makeLayers(uAt, dAt) {
         // dust in the ecliptic and not a haze filling the sky — concentrating
         // it is what lets it be a visible warm structure without becoming a
         // global tint over everything.
-        opacity: ({ u }) => band(dAt(u), 3.0e6, 2.0e7, 5.2e11, MARS_D - 4.0e6) * 0.54 * Math.sqrt(sunFlux(dAt(u))),
+        opacity: ({ u }) => band(dAt(u), 3.0e6, 2.0e7, 5.2e11, MARS_D - 4.0e6) * 0.18 * Math.sqrt(sunFlux(dAt(u))),
       })),
 
     // ======================================================================
@@ -601,7 +673,7 @@ export function makeLayers(uAt, dAt) {
       tower({
         heightMeters: 118, widthMeters: 16, bays: 12, legR: 0.030, braces: 'x',
         color: 0x8d939b, metalness: 0.48, roughness: 0.68,
-        deck: { sizeMeters: 76, thickness: 3.2, color: 0x5d5a54 },
+        deck: { sizeMeters: 28, thickness: 2.4, color: 0x4d5054 },
         arms: [
           { at: 0.26, lengthMeters: 20, thickness: 1.5, side: 1 },
           { at: 0.46, lengthMeters: 20, thickness: 1.5, side: 1 },
@@ -653,12 +725,22 @@ export function makeLayers(uAt, dAt) {
         thicknessMeters: 1.6e3,
         coverage: 0.52,
         scale: 3.6,
-        color: 0xf6f9ff,
-        shadowColor: 0x7f8da0,
+        // NOT near-white. At 0xf6f9ff this sheet is 0.97 luminance, and from
+        // 5 km up it fills the lower two-thirds of the frame — so under this
+        // stage's bloom (threshold ~0.42) it rendered as one solid white
+        // rectangle with the vehicle's own exhaust lost against it. A blind
+        // reviewer scored exactly that as the two most severe findings in the
+        // whole film, and neither gate could see it: `clip` reads 0.000 here
+        // and `occupancy` scores the beat 0.779 — the metric REWARDS the wash.
+        // Cloud is a bright mid-tone lit by the sun, not a light source; the
+        // sunlit face has to sit below the bloom threshold so that the plume,
+        // which genuinely is a light source, stays the brightest thing in shot.
+        color: 0xd4dcea,
+        shadowColor: 0x6b7889,
         sunDir: [0.8, 0.34, -0.4],
         seed: 5,
         offsetMeters: ({ u }) => [0, -dAt(u), 0],
-        opacity: ({ rebase }) => frames(rebase, 2.6e3, 4.2e5) * 0.85,
+        opacity: ({ rebase }) => frames(rebase, 2.6e3, 4.2e5) * 0.76,
       })),
 
     // ======================================================================
@@ -709,17 +791,25 @@ export function makeLayers(uAt, dAt) {
             // The core. Orange, because the insulation on a cryogenic core is
             // orange and because a stack that is white all over has thrown away
             // its own strongest identifying feature.
-            span: 0.46, r: 0.048, color: 0xc0632c, nozzles: 4, nozzleR: 0.015,
-            bell: true, tumble: 1.0,
+            span: CORE_STAGE_SPAN, r: 0.048, color: 0xc0632c, nozzles: 4, nozzleR: 0.015,
+            bell: true, tumble: 2.4, spentFade: 0.78, shedLateral: [0.75, -0.35],
+            raceway: {
+              span: 0.84, at: 0.50, phase: Math.PI, color: 0x6e747c,
+              connectors: 3, connectorReach: 0.82, connectorColor: 0x343a41,
+            },
+            aftStructure: { height: 0.17, ribs: 8, color: 0x737981 },
             shed: ({ u }) => plin([[6.4e4, 0], [7.6e4, 0.5], [9.5e4, 1]], dAt(u)),
           },
           {
-            span: 0.25, r: 0.044, color: 0xdfe3e8, nozzles: 1, nozzleR: 0.017,
+            span: UPPER_STAGE_SPAN, r: 0.044, color: 0xdfe3e8, nozzles: 1, nozzleR: 0.017,
             bell: true, tumble: 0.7,
-            // Parking-orbit insertion, one coast, then TMI — and only then is
-            // it discarded. The old table shed this at 2.2e5, which is where
-            // the copy says the trans-Mars burn STARTS.
-            shed: ({ u }) => plin([[3.0e6, 0], [5.0e6, 0.5], [8.0e6, 1]], dAt(u)),
+            raceway: {
+              span: 0.72, at: 0.48, phase: Math.PI, color: 0x747b84,
+              connectors: 2, connectorReach: 0.70, connectorColor: 0x3c4249,
+            },
+            // Parking-orbit insertion, one coast, then the complete TMI burn —
+            // and only after engine cutoff is the stage discarded.
+            shed: upperStageShedAt,
           },
           {
             // THE PAYLOAD ADAPTER. A short tapered cone between the upper stage
@@ -731,9 +821,9 @@ export function makeLayers(uAt, dAt) {
             // Fixing the anchor closes it, and the adapter is what fills it.
             //
             // It goes with the upper stage, because it does.
-            span: 0.025, r: 0.044, topR: 0.027, color: 0x9aa1aa, nozzles: 0,
-            tumble: 0.9,
-            shed: ({ u }) => plin([[3.0e6, 0], [5.0e6, 0.5], [8.0e6, 1]], dAt(u)),
+            span: PAYLOAD_ADAPTER_SPAN, r: 0.044, topR: 0.040, closed: true,
+            color: 0x9aa1aa, nozzles: 0, tumble: 0.9,
+            shed: upperStageShedAt,
           },
         ],
         capsule: null,
@@ -756,14 +846,41 @@ export function makeLayers(uAt, dAt) {
           count: 4, span: 0.105, spread: 0.050, thickness: 0.008,
           color: 0xaeb5be, phase: Math.PI / 4,
         },
+        launchMount: {
+          width: 0.74, depth: 0.62, opening: 0.30, thickness: 0.044,
+          deckElevation: 0.072,
+          holdDowns: 4, pylonHeight: 0.108, pylonWidth: 0.026,
+          color: 0x555b60, edgeColor: 0x9da19e, holdColor: 0x676d73,
+          edgeGirders: true, girderColor: 0x292e33,
+          trenchLength: 1.75, trenchOffset: 0.62,
+          trenchWallLength: 1.58, trenchWallOffset: 0.50,
+          deflectorHeight: 0.085, deflectorLength: 1.35,
+          deflectorWidth: 0.78, deflectorOffset: 0.62,
+          offsetMeters: ({ u }) => [0, -dAt(u), 0],
+          opacity: ({ u }) => clamp01((520 - dAt(u)) / 300),
+        },
         plume: {
-          span: 0.85, r: 0.050, core: 0xfff4d8, edge: 0xff8a2e, gain: 1.0,
-          smoke: 0x33302c, smokeEdge: 0x121110, smokeGain: 0.5, soft: 1.5,
-          // The burning engine moves UP the stack when the core goes.
-          at: ({ u }) => plin([[6.4e4, 0], [9.5e4, 0.46]], dAt(u)),
+          span: 0.95, r: 0.055, core: 0xfff8e8, edge: 0xff7a20, gain: 1.45,
+          smoke: 0x33302c, smokeEdge: 0x121110, smokeGain: 0.5, soft: 1.35, tip: 0.24,
+          ground: {
+            radius: 0.48, smokeRadius: 1.02, core: 0xfff6dc, edge: 0xff862c,
+            smoke: 0x716b65, steam: 0xaeb2b6,
+            coreGain: 1.80, edgeGain: 0.62, smokeGain: 0.58, steamGain: 0.56,
+            cloudCount: 180, clearRadius: 0.10,
+            steamLift: 0.070, smokeLift: 0.040,
+            steamRadiusMin: 0.040, steamRadiusRange: 0.085,
+            smokeRadiusMin: 0.050, smokeRadiusRange: 0.095,
+            steamVerticalScale: 1.35, smokeVerticalScale: 0.48,
+            cloudStretch: 1.90, cloudStretchJitter: 1.45,
+            offsetMeters: ({ u }) => [0, -dAt(u), 0],
+            gain: ({ u }) => plin([[1, 0], [6, 0], [9, 1], [100, 1], [520, 0]], dAt(u)),
+          },
+          // The burning engine moves UP the stack while both engines are dark,
+          // so no visible flame ever slides through the discarded core.
+          at: ({ u }) => (dAt(u) >= 6.62e4 ? 0.46 : 0),
           throttle: ({ u }) => plin([
-            [1, 0], [4, 1], [1.0e4, 1], [1.4e4, 0.7], [2.4e4, 1],
-            [6.4e4, 1], [6.6e4, 0], [7.2e4, 0.85], [1.85e5, 0.85], [1.9e5, 0],
+            [1, 0], [6, 0], [9, 1], [1.0e4, 1], [1.4e4, 0.7], [2.4e4, 1],
+            [6.4e4, 1], [6.52e4, 0], [6.68e4, 0], [7.2e4, 0.85], [1.85e5, 0.85], [1.9e5, 0],
             [2.15e5, 0], [2.2e5, 1], [2.6e6, 1], [3.2e6, 0], // TMI
           ], dAt(u)),
         },
@@ -792,13 +909,16 @@ export function makeLayers(uAt, dAt) {
     // read as two stickers that happen to be near each other. From 30,000 km
     // out it slides continuously to the screen anchor and becomes the hero.
     // ======================================================================
-    L('cruise-stage', 1.0e5, MARS_D - 6.0e5, () =>
+    L('cruise-stage', 1.0e5, MARS_D - 1.8e4, () =>
       cruiseStage({
         spanMeters: ({ u, rebase }) => {
           const s = cruiseBlend(dAt(u));
+          const arrival = arrivalBlendAt(u);
           const stowed = stackLen(rebase, dAt(u)) * 0.088;
-          const hero = Math.max(60, rebase.frameMeters() * 0.175);
-          return stowed * (1 - s) + hero * s;
+          const hero = Math.max(44, rebase.frameMeters() * 0.210);
+          const cruise = stowed * (1 - s) + hero * s;
+          const entry = entrySpanMeters(rebase);
+          return cruise * (1 - arrival) + entry * arrival;
         },
         lightDir: SUN_DIR,
         ambient: 0.22,
@@ -816,7 +936,7 @@ export function makeLayers(uAt, dAt) {
           cellRows: 3, cellCols: 4, cellGap: 0.007,
         },
         arrays: {
-          count: 2, span: 0.92, width: 0.36, at: 0.35, tilt: 0.10,
+          count: 2, span: 0.50, width: 0.36, at: 0.35, tilt: 0.10,
           color: 0x22376e, frameColor: 0x9aa1aa,
           // …and the wings as three hinged sections on a twin-beam yoke, with a
           // cell grid, raised rails and a metallic substrate behind. They were
@@ -831,14 +951,11 @@ export function makeLayers(uAt, dAt) {
         // in the middle of the subject, where against black it is a silhouette
         // with a rim and a feed on it.
         antenna: {
-          diameter: 0.36, at: [0.33, 0.13, -0.30], tilt: -0.62, yaw: 0.85,
+          diameter: 0.44, at: [0.33, 0.13, -0.30], tilt: -0.62, yaw: 0.85,
           color: 0xa9b0b9,
         },
-        backshell: { diameter: 0.60, topDiameter: 0.26, height: 0.24, color: 0xc6cbd2 },
-        heatShield: {
-          diameter: 0.62, depth: 0.20, color: 0x6d5442,
-          rimColor: 0x9c6a44, bandColor: 0x4d3a2d,
-        },
+        backshell: ENTRY_BACKSHELL,
+        heatShield: ENTRY_HEAT_SHIELD,
         // BOLTED DOWN, THEN FREE-FLYING. While the payload is on the stack its
         // origin is its AFT HARDPOINT, so `offsetMeters` can be the joint itself
         // and the two cannot drift apart; once it is the cruise hero its origin
@@ -849,18 +966,34 @@ export function makeLayers(uAt, dAt) {
         // stack against a stage top at 0.21) is exactly the visible gap a reader
         // reported as "the satellite is not at all linked with the rocket".
         anchor: ({ u }) => 1 - cruiseBlend(dAt(u)),
-        attitude: ({ u }) => stackAttitude(u),
+        attitude: ({ u }) => {
+          const arrival = arrivalBlendAt(u);
+          const cruise = stackAttitude(u);
+          const entry = entryTilt(u);
+          return [0, 1, 2].map((i) => cruise[i] * (1 - arrival) + entry[i] * arrival);
+        },
         offsetMeters: ({ u, rebase }) => {
           const s = cruiseBlend(dAt(u));
+          const arrival = arrivalBlendAt(u);
           const attached = onStackAxis(PAYLOAD_MOUNT, rebase, u);
-          if (s <= 0) return attached;
           const anchored = screenAnchoredMeters(u, HERO_ANCHOR);
-          return [0, 1, 2].map((i) => attached[i] * (1 - s) + anchored[i] * s);
+          const cruise = [0, 1, 2].map((i) => attached[i] * (1 - s) + anchored[i] * s);
+          const entry = entryPose({ u, rebase });
+          return [0, 1, 2].map((i) => cruise[i] * (1 - arrival) + entry[i] * arrival);
         },
-        // Appears as the shroud opens, and stands down once the lander is a
-        // separate declared vehicle.
+        // The cruise bus peels away while the aeroshell remains on the entry
+        // pose. Its blue wings are deliberately still readable at interface.
+        separatePart: 'carrier',
+        separateOffset: [-1.25, 0.55, 0.40],
+        separateRotation: [0.72, -0.50, 0.90],
+        separate: ({ u }) => plin([
+          [MARS_D - 1.5e7, 0], [MARS_D - 4.0e5, 1],
+        ], dAt(u)),
+        carrierOpacity: ({ u }) => plin([
+          [MARS_D - 9.0e4, 1], [MARS_D - 4.0e4, 0],
+        ], dAt(u)),
         opacity: ({ u }) => clamp01((dAt(u) - 1.05e5) / 2.6e4)
-          * clamp01((MARS_D - 8.0e5 - dAt(u)) / 6.0e5),
+          * clamp01(((MARS_D - dAt(u)) - 1.8e4) / 1.2e4),
         respectBand: false,
       })),
 
@@ -869,14 +1002,13 @@ export function makeLayers(uAt, dAt) {
     // the flame is at the vehicle rather than near it.
     L('correction-burn', 3.9e11, 4.5e11, () =>
       glowSphere({
-        radiusMeters: ({ rebase }) => rebase.frameMeters() * 0.013,
-        // Clear of the disc, not on it: the craft is 0.155 of the frame across
-        // and this anchor is in units of frame/4, so anything inside ~0.3 of a
-        // unit is simply behind the vehicle.
+        radiusMeters: ({ rebase }) => rebase.frameMeters() * 0.008,
+        // Clear of the disc, not on it: the enlarged bus and shortened arrays
+        // still leave this point visibly attached to the spacecraft's rim.
         offsetMeters: ({ u }) => screenAnchoredMeters(u, {
-          ...HERO_ANCHOR, right: HERO_ANCHOR.right + 0.62, up: HERO_ANCHOR.up - 0.34,
+          ...HERO_ANCHOR, right: HERO_ANCHOR.right + 0.34, up: HERO_ANCHOR.up - 0.18,
         }),
-        color: 0xdfe8ff, haloColor: 0x7fa8ff, haloScale: 5.0,
+        color: 0xdfe8ff, haloColor: 0x7fa8ff, haloScale: 4.2,
         solid: true, solidColor: 0xf0f5ff, segments: 16, respectBand: false,
         opacity: ({ u }) => plin([
           [4.02e11, 0], [4.16e11, 0.9], [4.30e11, 0],
@@ -903,23 +1035,22 @@ export function makeLayers(uAt, dAt) {
     // supposed to agree.
     L('stage-debris', 6.2e4, 1.5e5, () =>
       particleField({
-        count: 900, distribution: 'disk', innerRadius: 0.15, thickness: 0.5,
-        // Darker and sparser: at 1,400 near-white sprites this read as a snowball
-        // stuck to the interstage. Real staging debris is insulation and frost —
-        // dim, uneven, and legible as FRAGMENTS against the flash behind it.
-        seed: 32, blending: 'normal', colorA: 0xc2cbd5, colorB: 0x4a5058, colorMode: 'random',
-        size: 2.0, maxSize: 6, jitter: 0.02,
+        count: 28, distribution: 'disk', innerRadius: 0.22, thickness: 0.7,
+        // Sparse dark fragments, not a luminous frost ball. Their uneven ring
+        // leaves the stage joint and both separating bodies readable through it.
+        seed: 32, blending: 'normal', colorA: 0x555b62, colorB: 0x171a1e, colorMode: 'random',
+        size: 0.9, maxSize: 2.2, jitter: 0,
         radiusMeters: ({ u, rebase }) => rebase.frameMeters() * plin([[6.5e4, 0.02], [8.0e4, 0.08], [9.5e4, 0.18], [1.4e5, 0.35]], dAt(u)),
         offsetMeters: ({ u, rebase }) => stageJointMeters(rebase, u),
         respectBand: false,
-        opacity: ({ u }) => plin([[6.4e4, 0], [7.0e4, 0.85], [1.1e5, 0.4], [1.5e5, 0]], dAt(u)),
+        opacity: ({ u }) => plin([[6.4e4, 0], [7.0e4, 0.30], [1.1e5, 0.13], [1.5e5, 0]], dAt(u)),
       })),
     L('retro-flash', 6.4e4, 1.0e5, () =>
       glowSphere({
-        radiusMeters: ({ rebase }) => rebase.frameMeters() * 0.022,
+        radiusMeters: ({ rebase }) => rebase.frameMeters() * 0.008,
         offsetMeters: ({ u, rebase }) => stageJointMeters(rebase, u),
         color: 0xfff0d0, haloColor: 0xffc98a, haloScale: 2.6, respectBand: false,
-        opacity: ({ u }) => plin([[6.5e4, 0], [7.4e4, 0.62], [8.6e4, 0.30], [1.0e5, 0]], dAt(u)),
+        opacity: ({ u }) => plin([[6.5e4, 0], [6.9e4, 0.18], [7.5e4, 0.05], [8.0e4, 0]], dAt(u)),
       })),
 
     // ======================================================================
@@ -1265,55 +1396,21 @@ export function makeLayers(uAt, dAt) {
     // derivation. It carries a small lateral offset so the entry vehicle sits
     // clear of the copy panel and reads against sky rather than against the
     // limb, and it converges on the origin as the lander takes over.
-    L('entry-vehicle', MARS_D - 1.6e5, MARS_D - 1.8e4, () =>
-      cruiseStage({
-        // The aeroshell alone — the cruise stage's disc, arrays and antenna are
-        // gone, cut loose minutes before entry, which is what actually happens.
-        // Same archetype, three assemblies omitted, exactly as the jettisoned
-        // heat shield below already does it.
-        // BIG ENOUGH TO NAME. A blind reviewer scored beat 21 at 1 of 3 for
-        // legibility — "a small orange-white glow near the horizon" — with the
-        // aeroshell at 0.11 of the frame, about 75 px. At 0.19 the backshell,
-        // the heat shield's shoulder and the shock standing off it are three
-        // separate readable things.
-        spanMeters: ({ rebase }) => rebase.frameMeters() * 0.19,
-        lightDir: SUN_DIR,
-        ambient: 0.30,
-        disc: null,
-        arrays: null,
-        antenna: null,
-        backshell: { diameter: 0.62, topDiameter: 0.28, height: 0.30, color: 0xbfc4cb },
-        // Hotter than the cruise stage's, because it IS: this is the face doing
-        // the braking, and a near-black disc under a white shock reads as a hole
-        // rather than as ablative material at fifteen hundred kelvin.
-        heatShield: {
-          diameter: 0.66, depth: 0.22, color: 0x8c6146,
-          rimColor: 0xc07c4c, bandColor: 0x5e4430,
-        },
-        attitude: AEROSHELL_ATTITUDE,
-        offsetMeters: entryPose,
-        respectBand: false,
-        // Arrives while the cruise stage is still fading, leaves while the
-        // lander is fading in — a crossfade at each end, not a cut.
-        opacity: ({ u }) => band(dAt(u),
-          MARS_D - 1.5e5, MARS_D - 1.25e5, MARS_D - 3.0e4, MARS_D - 2.0e4),
-      })),
-
     // THE PLASMA SHEATH. This was `particleField` with normal blending and two
     // near-black browns, which is soot; see src/archetypes/entry-sheath.js for
     // why no parameter of a point field could have made it a sheath. It shares
     // `entryPose` and the entry tilt with the aeroshell above, so the shock
     // stands off the windward face and the wake runs the right way by
     // construction rather than by two numbers agreeing.
-    L('entry-sheath', MARS_D - 1.5e5, MARS_D - 1.8e4, () =>
+    L('entry-sheath', MARS_D - 4.5e5, MARS_D - 1.8e4, () =>
       entrySheath({
-        spanMeters: ({ rebase }) => rebase.frameMeters() * 0.19,
+        spanMeters: ({ u, rebase }) => rebase.frameMeters() * (0.26 + 0.24 * entryHeatAt(u)),
         // The cap HUGS the shoulder rather than reaching past it: drawn wider
         // than the body it reads as a saucer the vehicle is sitting on, which is
         // the opposite of a shock standing off a windward face.
-        capRadius: 0.60, capDepth: 0.30, standoff: 0.10,
-        wakeLength: 2.4, wakeBase: 0.46, wakeTail: 0.04,
-        breakup: 0.95,
+        capRadius: 0.31, capDepth: 0.38, standoff: 0.10,
+        wakeLength: 3.6, wakeBase: 0.36, wakeTail: 0.025,
+        breakup: 1.45,
         core: 0xffe0ae, edge: 0xff5a18,
         attitude: SHEATH_ATTITUDE,
         offsetMeters: entryPose,
@@ -1325,14 +1422,54 @@ export function makeLayers(uAt, dAt) {
         // the film's own dwell land — is about 35 km, not 60. Keyed to the
         // event and then checked against the sample, rather than to the round
         // number in the copy.
-        gain: ({ u }) => plin([
-          [MARS_D - 1.4e5, 0], [MARS_D - 1.0e5, 0.5],
-          [MARS_D - 4.5e4, 1.0], [MARS_D - 3.2e4, 0.9],
-          [MARS_D - 2.4e4, 0.18], [MARS_D - 2.0e4, 0],
-        ], dAt(u)),
+        gain: ({ u }) => entryHeatAt(u),
         respectBand: false,
         opacity: ({ u }) => band(dAt(u),
-          MARS_D - 1.45e5, MARS_D - 1.3e5, MARS_D - 2.6e4, MARS_D - 2.0e4),
+          MARS_D - 4.0e5, MARS_D - 1.5e5, MARS_D - 2.6e4, MARS_D - 2.0e4),
+      })),
+
+    // The complete aeroshell remains around the lander when the parachute
+    // opens. At shield release it crossfades to the identical backshell-only
+    // assembly, so the payload is progressively uncovered rather than swapped.
+    L('descent-aeroshell', MARS_D - 2.2e4, MARS_D - 1.85e3, () =>
+      cruiseStage({
+        spanMeters: ({ rebase }) => entrySpanMeters(rebase),
+        lightDir: SUN_DIR,
+        ambient: 0.36,
+        disc: null,
+        arrays: null,
+        antenna: null,
+        backshell: ENTRY_BACKSHELL,
+        heatShield: ENTRY_HEAT_SHIELD,
+        attitude: ({ u }) => {
+          const d = dAt(u);
+          return [
+            plin([[MARS_D - 2.2e4, -0.40], [MARS_D - 1.1e4, 0]], d),
+            plin([[MARS_D - 2.2e4, 0], [MARS_D - 1.1e4, 0.5]], d),
+            plin([[MARS_D - 2.2e4, 0.22], [MARS_D - 1.1e4, 0]], d),
+          ];
+        },
+        offsetMeters: [0, 0, 0],
+        respectBand: false,
+        opacity: ({ u }) => band(dAt(u),
+          MARS_D - 2.2e4, MARS_D - 1.9e4, MARS_D - 2.1e3, MARS_D - 1.9e3),
+      })),
+
+    L('descent-backshell', MARS_D - 2.1e3, MARS_D - 250, () =>
+      cruiseStage({
+        spanMeters: ({ rebase }) => entrySpanMeters(rebase),
+        lightDir: SUN_DIR,
+        ambient: 0.36,
+        disc: null,
+        arrays: null,
+        antenna: null,
+        backshell: ENTRY_BACKSHELL,
+        heatShield: null,
+        attitude: () => [0, 0.5, 0],
+        offsetMeters: chuteReleaseOffset,
+        respectBand: false,
+        opacity: ({ u }) => band(dAt(u),
+          MARS_D - 2.1e3, MARS_D - 1.9e3, MARS_D - 1.5e3, MARS_D - 650),
       })),
 
     // THE GAP IS CLOSED. This was `blob`, under a comment in this file that
@@ -1349,10 +1486,10 @@ export function makeLayers(uAt, dAt) {
     // the chute and the thing it is carrying cannot read as two stickers. The
     // old version placed the ball at an independent 0.30 of the frame, which is
     // precisely the gap that was visible.
-    L('parachute-canopy', MARS_D - 1.15e4, MARS_D - 1.6e3, () =>
+    L('parachute-canopy', MARS_D - 1.15e4, MARS_D - 250, () =>
       parachute({
         spanMeters: ({ rebase }) => rebase.frameMeters() * 0.34,
-        offsetMeters: [0, 0, 0],
+        offsetMeters: chuteReleaseOffset,
         gores: 20,
         ventRadius: 0.055,
         crownHeight: 0.62,
@@ -1388,7 +1525,7 @@ export function makeLayers(uAt, dAt) {
         // a shield is released while the vehicle is hanging on the chute, and
         // the chute goes later, with the backshell, when the descent engines
         // take over. Full through the jettison, gone by powered descent.
-        opacity: ({ u }) => band(dAt(u), MARS_D - 1.1e4, MARS_D - 9.0e3, MARS_D - 1.4e3, MARS_D - 900),
+        opacity: ({ u }) => band(dAt(u), MARS_D - 1.1e4, MARS_D - 9.0e3, MARS_D - 1.5e3, MARS_D - 650),
       })),
 
     // The discarded heat shield, falling away below and tumbling. Beats 23, 24
@@ -1406,7 +1543,7 @@ export function makeLayers(uAt, dAt) {
     // — which is the honest way to draw one half of something that separates.
     L('heat-shield', MARS_D - 2.4e3, MARS_D - 200, () =>
       cruiseStage({
-        spanMeters: ({ rebase }) => rebase.frameMeters() * 0.30,
+        spanMeters: ({ rebase }) => entrySpanMeters(rebase),
         lightDir: SUN_DIR,
         // A DARK OBJECT AGAINST A BRIGHT BROWN SKY IS A HOLE, NOT A SHIELD.
         // At 0.34 the tiled face read as a silhouette and a blind reviewer
@@ -1428,20 +1565,7 @@ export function makeLayers(uAt, dAt) {
         // from the cone angle and the nose radius, the face is tiled rather
         // than grooved, and there is a rear shell with a dark interior for the
         // tumble to reveal.
-        heatShield: {
-          diameter: 1.0,
-          coneAngleDeg: 70, noseRadius: 0.16, shellThickness: 0.035,
-          tileRings: 6, tileSectors: 20, tileGap: 0.006,
-          tileColorA: 0x8a6349, tileColorB: 0x664636, tileColorC: 0x785440,
-          jointColor: 0x33241b,
-          // The cavity is DARK, not black. At 0x15181b under this ambient the
-          // interior rendered as a hole cut in the sky and the backing ribs
-          // could not be seen at all — which is the blowout failure mode
-          // inverted, and just as illegible. It has to read as a structure in
-          // shadow.
-          interiorColor: 0x2c313a, interiorRibs: 8, ribColor: 0x525a66,
-          rimColor: 0xc0794a, rimScallops: 24, rimScallop: 0.018,
-        },
+        heatShield: ENTRY_HEAT_SHIELD,
         // Discarded hardware TUMBLES. A rigid attitude reads as a second working
         // spacecraft flying in formation.
         //
@@ -1452,7 +1576,7 @@ export function makeLayers(uAt, dAt) {
         // Starting near face-on, passing through edge-on and past the interior
         // is the difference between a tumbling dish and a spinning disc.
         attitude: ({ u }) => {
-          const s = clamp01((MARS_D - 2.0e3 - dAt(u)) / -1.4e3);
+          const s = heatShieldReleaseAt(u);
           // THE PITCH WAS THE WRONG SIGN, AND HAD BEEN SINCE THE BEAT EXISTED.
           // The ablative face is the archetype's local -y. Carried through
           // Euler XYZ, a POSITIVE pitch swings it to -z — away from a camera
@@ -1470,12 +1594,11 @@ export function makeLayers(uAt, dAt) {
         },
         offsetMeters: ({ u, rebase }) => {
           const f = rebase.frameMeters();
-          const s = clamp01((MARS_D - 2.0e3 - dAt(u)) / -1.4e3);
-          // AN EVENT NEEDS SEPARATING FROM WHATEVER IT PASSES IN FRONT OF. The
-          // first pass dropped this straight down the middle onto the ground
-          // below and it read as a crater. It falls out to one side and stays
-          // above the horizon while it is the subject.
-          return [f * (0.34 + 0.5 * s), -f * (0.05 + 0.55 * s), -f * 0.22 * s];
+          const s = heatShieldReleaseAt(u);
+          // It begins at the exact mount occupied by the attached shield, then
+          // falls laterally and down. There is no pre-existing separation for
+          // the opacity crossfade to reveal as a pop.
+          return [f * 0.85 * s, -f * 0.38 * s, -f * 0.18 * s];
         },
         respectBand: false,
         opacity: ({ u }) => band(dAt(u), MARS_D - 2.1e3, MARS_D - 1.9e3, MARS_D - 700, MARS_D - 250),
@@ -1483,11 +1606,18 @@ export function makeLayers(uAt, dAt) {
 
     L('lander', MARS_D - 3.0e4, walked(95), () =>
       vehicle({
-        lengthMeters: ({ rebase }) => Math.max(6, rebase.frameMeters() * 0.14),
-        lightDir: SUN_DIR, ambient: 0.14,
-        stages: [{ span: 0.42, r: 0.30, color: 0xc9a25e, nozzles: 1, nozzleR: 0.09 }],
-        capsule: { span: 0.36, r: 0.26, color: 0xc8ccd2, cone: 0 },
-        legs: { count: 4, span: 0.55, spread: 0.72, footR: 0.07, color: 0xa8aeb6 },
+        lengthMeters: ({ rebase }) => landerLengthMeters(rebase),
+        lightDir: SUN_DIR, ambient: 0.24,
+        stages: [
+          { span: 0.30, r: 0.34, color: 0xc9a25e, nozzles: 4, nozzleR: 0.055 },
+          { span: 0.16, r: 0.26, color: 0x8c939d, nozzles: 0 },
+        ],
+        capsule: { span: 0.24, r: 0.23, color: 0xc8ccd2, cone: 0 },
+        boosters: {
+          count: 4, span: 0.24, r: 0.075, nozzleR: 0.05,
+          color: 0x9a7b4e, noseColor: 0xaeb4bc, banded: false, tumble: 0,
+        },
+        legs: { count: 4, span: 0.52, spread: 0.86, footR: 0.09, color: 0xa8aeb6 },
         plume: {
           span: 0.9, r: 0.10, core: 0xffe0b0, edge: 0xff8a3a, gain: 0.6,
           smoke: 0x1a1410, smokeEdge: 0x0a0806, smokeGain: 0.2, soft: 1.1,
@@ -1503,11 +1633,11 @@ export function makeLayers(uAt, dAt) {
         offsetMeters: ({ u, rebase }) => {
           const d = dAt(u);
           const grounded = clamp01(1 - Math.max(0, MARS_D - d) / 30);
-          const len = Math.max(6, rebase.frameMeters() * 0.14);
+          const len = landerLengthMeters(rebase);
           const walkedM = Math.max(0, d - MARS_D);
-          return [-(walkedM * 0.8) - grounded * 5, grounded * len * 0.42, walkedM * 0.4];
+          return [-(walkedM * 0.8) - grounded * 5, grounded * len * LANDER_REST_HEIGHT, walkedM * 0.4];
         },
-        opacity: ({ u }) => band(dAt(u), MARS_D - 2.6e4, MARS_D - 1.6e4),
+        opacity: ({ u }) => band(dAt(u), MARS_D - 2.3e3, MARS_D - 1.85e3),
         respectBand: false,
       })),
 

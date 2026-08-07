@@ -134,6 +134,29 @@ time on.
    under a line that names it confidently, is the defect this whole project is
    built to catch.
 
+**A REVIEW THAT DESCRIBES A BUILD YOU NO LONGER HAVE IS WORSE THAN NO REVIEW.**
+This has now bitten twice, one layer apart. First: capture was skipped when the
+frames directory already existed, so a review came back clean about a cut nobody
+had made. That was fixed by checking the frames against the master. Then it
+happened again underneath that fix — `reviewer.mjs` caches its 768px JPEGs in a
+sibling `-send` directory keyed on FILENAME ALONE, and a re-capture writes
+`beat-23.png` over `beat-23.png`, so the provenance guard was satisfied while
+the send directory still held images from the previous day. The whole report,
+including its diff, was about code that had been replaced. It now re-shrinks
+whenever the source is newer, but the general rule is worth carrying: when a
+review says something you are fairly sure you fixed, **check the timestamps on
+what was actually uploaded** before you believe it or argue with it.
+
+Two smaller traps from the same session:
+
+- **Never pipe a gate or a long run through `tail`.** It reports tail's exit
+  code, so a failure looks like a pass — and it discards the output above,
+  which on a multi-round tool is the entire record of what was done and why.
+  Redirect to a file and grep it.
+- **Re-measure `motion` after any change to a persistent layer.** Parallax from
+  a near-foreground object that turns with `u` was not there when the old drift
+  values were tuned.
+
 **Three rounds, then stop and report.** Past three the problem is almost always
 beat SELECTION or the journey itself, which is a design decision and needs the
 user.

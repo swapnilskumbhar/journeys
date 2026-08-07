@@ -64,6 +64,66 @@ const EXTRA = {
     ok(firstSecond > 0.15, '  the first second gets real scroll', `${(firstSecond * 100).toFixed(0)}%`);
     ok(sinceKPg > 0.15, '  the age of mammals gets real scroll', `${(sinceKPg * 100).toFixed(0)}%`);
   },
+  // The mission clock. This journey's axis is DISTANCE, and elapsed.js is a
+  // second quantity derived from it — solved from Kepler's equation for the
+  // cruise, so it is exactly the kind of thing that can silently invert or go
+  // flat without any frame looking different. The readout and the film's
+  // narration both quote it.
+  'earth-to-mars': async (A) => {
+    const { elapsedAt, formatMissionTime, MISSION_SECONDS, CRUISE_SECONDS } =
+      await load('earth-to-mars', 'elapsed.js');
+    const { MARS_D, walked } = await load('earth-to-mars', 'distance.js');
+
+    const DAY = 86400;
+    ok(Math.abs(CRUISE_SECONDS / DAY - 258.8) < 0.5, '  Hohmann cruise is 258.8 days',
+      `${(CRUISE_SECONDS / DAY).toFixed(2)} d`);
+    ok(Math.abs(MISSION_SECONDS / DAY - 258.9) < 1, '  ignition to touchdown ≈ 259 days',
+      `${(MISSION_SECONDS / DAY).toFixed(2)} d`);
+
+    // Monotonic, densely. A clock that runs backwards anywhere is worse than
+    // no clock, and the seam between four hand-written legs and one solved
+    // one is where it would happen.
+    let mono = true, prev = -Infinity;
+    for (let i = 0; i <= 20000; i++) {
+      const t = elapsedAt(1 + (walked(95) - 1) * (i / 20000));
+      if (t < prev) mono = false;
+      prev = t;
+    }
+    ok(mono, '  the clock never runs backwards');
+
+    // THE FACT THE COPY ASSERTS. Beat 16 tells the reader the first half of
+    // the arc took 57 days of 225 — that is the whole point of solving Kepler
+    // rather than interpolating, and if a future edit flattens the cruise to a
+    // straight line this is the check that catches it.
+    const atEarthOrbit = elapsedAt(1.5e11) / DAY;
+    const atMarsOrbit = elapsedAt(5.0e11) / DAY;
+    ok(Math.abs(atEarthOrbit - 57) < 3, '  Earth\'s orbit crossed at ~57 days',
+      `${atEarthOrbit.toFixed(0)} d`);
+    ok(Math.abs(atMarsOrbit - 225) < 4, '  Mars\' orbit crossed at ~225 days',
+      `${atMarsOrbit.toFixed(0)} d`);
+    ok(atMarsOrbit - atEarthOrbit > 2 * atEarthOrbit,
+      '  the far half of the transfer takes far longer than the near half',
+      `${(atMarsOrbit - atEarthOrbit).toFixed(0)} d vs ${atEarthOrbit.toFixed(0)} d`);
+
+    // Seven minutes, and the register switch that makes it visible. Printed as
+    // time since ignition every EDL beat reads "T+259 days"; this is the check
+    // that the readout is still saying something.
+    const edl = (elapsedAt(MARS_D) - elapsedAt(MARS_D - 1.25e5));
+    ok(edl > 300 && edl < 420, '  entry interface to touchdown is under seven minutes',
+      `${edl.toFixed(0)} s`);
+    ok(formatMissionTime(MARS_D - 6e4).startsWith('E+'), '  descent counts from entry',
+      formatMissionTime(MARS_D - 6e4));
+    ok(formatMissionTime(walked(9)).startsWith('L+'), '  the surface counts from landing',
+      formatMissionTime(walked(9)));
+
+    // The readout sits beside the scrub track, which has a min-width and no
+    // max-width — a string that swings wide narrows the track visibly. This is
+    // the crust-to-core lesson as a check rather than a comment.
+    let widest = 0;
+    for (let i = 0; i <= 2000; i++) widest = Math.max(widest, A.format(i / 2000).length);
+    ok(widest <= 40, '  the readout stays narrow enough not to squeeze the track',
+      `${widest} chars`);
+  },
   'earth-to-moon': (A) => {
     // The two claims the segmented distance axis is FOR. A pure log axis gives
     // the ascent 62% of the page and the lunar arrival about one pixel; if
@@ -108,7 +168,7 @@ for (const id of ids) {
   }
   ok(seams, '  every segment boundary round-trips');
 
-  EXTRA[id]?.(A);
+  await EXTRA[id]?.(A);
 
   // --- beat placement -----------------------------------------------------
   console.log('# beat placement');

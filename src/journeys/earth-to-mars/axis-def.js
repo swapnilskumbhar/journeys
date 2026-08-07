@@ -1,4 +1,12 @@
 import { MARS_D, walked, formatDistance } from './distance.js';
+import { formatMissionTime } from './elapsed.js';
+
+// The readout carries BOTH halves of the fact: how far, and how long. Composed
+// HERE rather than inside formatDistance because elapsed.js imports
+// distance.js — putting the call the other way round would make a cycle, and a
+// cycle around a module that computes a Kepler table at load time is the kind
+// that fails by handing you a half-initialised binding rather than by throwing.
+const formatReadout = (d) => `${formatDistance(d)} · ${formatMissionTime(d)}`;
 
 // THE AXIS. Distance travelled along the flight path, in metres, 1 m →
 // MARS_D + 55 m. Monotonic by construction, same contract as earth-to-moon:
@@ -17,7 +25,7 @@ export const axisDef = {
   kind: 'segments',
   unit: 'm',
   label: '',
-  format: formatDistance,
+  format: formatReadout,
   segments: [
     // --- the pad and the ascent ------------------------------------------
     { from: 1, to: 4, weight: 1.00 },              // 1  The pad

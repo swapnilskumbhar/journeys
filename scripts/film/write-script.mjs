@@ -21,6 +21,10 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'no
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ask, imagePart, textPart, costOf } from './lib/openai.mjs';
+// Stamped into the generated film.js. The director is whichever model
+// OPENAI_MODEL names, so hardcoding one here makes the file lie about its
+// own provenance the first time somebody runs it with another.
+import { OPENAI_MODEL } from './lib/env.mjs';
 import { run } from './lib/ffmpeg.mjs';
 
 // Width the director actually sees. `shots.mjs` captures at 1440x900 PNG,
@@ -139,7 +143,8 @@ No line may begin by restating its heading, and no line may end on a note that
 needs a pause the next line will not get. Avoid em-dashes and ellipses: the
 voice engine renders them as long fixed pauses that cannot be compressed.
 
-WORDLESS SHOTS. One or two per film, no more. Give a beat an empty narration
+WORDLESS SHOTS. One or two per film unless an operator note below asks for
+more. Give a beat an empty narration
 and a hold of 3-6 seconds when the picture genuinely carries it alone, and put
 them where a viewer needs to breathe — usually just after the densest passage
 and just before the ending.
@@ -176,13 +181,73 @@ Return one shot per beat unless a beat's frame is genuinely redundant with its
 neighbour, in which case drop it — a shorter film that always has something to
 look at beats a complete one that stalls.`;
 
-export async function writeScript({ id, blindDir, out, effort = 'high', ledger = null, log = console.log }) {
+// Appended ONLY when the journey exports a mission clock. The default film has
+// no such quantity and telling a director about a clock it was given no
+// readings for would invite it to invent one — which is the exact failure the
+// facts rule above exists to prevent.
+const ELAPSED_INSTRUCTIONS = `
+
+THE CLOCK.
+This journey's axis is not time, but the journey still TAKES time, and each
+beat above carries an "elapsed" reading. Those readings are FACTS on the same
+footing as the beat copy: you may use them, and unlike the copy you may convert
+them into plain English (a reading of "T+259 days" may be spoken as "eight and
+a half months").
+
+Duration is the half of this journey a viewer cannot see. The pictures show
+distance — a shrinking planet, a growing one — and no frame can show that the
+gap between two of them was three months of nothing happening. Use the clock
+where it changes what a picture MEANS, and let it carry the film's largest
+scale change: read the elapsed column end to end before you write, notice where
+it moves fastest and where it barely moves at all, and put a line on the beat
+where that changes.
+
+Do not stamp a time on every shot. A clock recited on all of them is wallpaper
+and stops being heard; three or four placed where the number is genuinely
+surprising will land. Never contradict a reading, and never interpolate a beat
+that was not given one.`;
+
+/**
+ * The operator's editorial note, appended last so it wins where it conflicts
+ * with a default above. This is the channel for "more silence in the middle",
+ * "lean on the clock", "stop naming the hardware" — the judgements a person
+ * makes after WATCHING a cut, which no instruction written in advance can
+ * anticipate. It is deliberately not a per-journey file: the note belongs to
+ * one run, and a note that outlives the cut it was written about is worse than
+ * no note.
+ */
+function operatorNote(note) {
+  return `
+
+OPERATOR NOTE.
+The person commissioning this film has watched a previous cut and asked for the
+following. Where it conflicts with the defaults above, FOLLOW THIS INSTEAD —
+they have seen the film and the defaults have not.
+
+${note.trim()}`;
+}
+
+export async function writeScript({ id, blindDir, out, effort = 'high', note = '', ledger = null, log = console.log }) {
   const dir = resolve('src/journeys', id);
   const { beats } = await import(pathToFileURL(join(dir, 'beats.js')).href);
   const meta = (await import(pathToFileURL(join(dir, 'meta.js')).href)).default;
   const { axisDef } = await import(pathToFileURL(join(dir, 'axis-def.js')).href);
   const { makeAxis } = await import(pathToFileURL(resolve('src/engine/axis.js')).href);
   const A = makeAxis(axisDef);
+
+  // OPT-IN SECOND QUANTITY. A journey travelled along distance or scale still
+  // takes TIME, and that time is a fact the director cannot invent — the rule
+  // below is that every figure must come from the journey, so a clock nobody
+  // hands it is a clock it is forbidden to mention. A journey that wants its
+  // elapsed time narrated exports `formatMissionTime(value)` from its own
+  // `elapsed.js`; every other journey is unaffected and this stays out of the
+  // shared film layer's business.
+  let missionTime = null;
+  const elapsedPath = join(dir, 'elapsed.js');
+  if (existsSync(elapsedPath)) {
+    const mod = await import(pathToFileURL(elapsedPath).href);
+    if (typeof mod.formatMissionTime === 'function') missionTime = mod.formatMissionTime;
+  }
 
   const content = [textPart(
     `JOURNEY: ${meta.title}\n` +
@@ -202,6 +267,7 @@ export async function writeScript({ id, blindDir, out, effort = 'high', ledger =
       `\n--- BEAT ${i} ---\n` +
       `heading: ${b.heading}\n` +
       `axis position: u=${A.toU(b.at).toFixed(4)}\n` +
+      (missionTime ? `elapsed: ${missionTime(b.at)}\n` : '') +
       `copy: ${b.body}`,
     ));
     const frame = join(blindDir, `beat-${String(i + 1).padStart(2, '0')}.png`);
@@ -225,7 +291,9 @@ export async function writeScript({ id, blindDir, out, effort = 'high', ledger =
   log(`director: ${beats.length} beats, ${withFrames} frames at ${DIRECTOR_WIDTH}px (~${mb.toFixed(1)} MB payload), effort=${effort}`);
   if (mb > 20) log(`  WARNING: ${mb.toFixed(0)} MB is large enough to risk an upload timeout`);
   const { json, usage, polls } = await ask({
-    instructions: INSTRUCTIONS,
+    instructions: INSTRUCTIONS
+      + (missionTime ? ELAPSED_INSTRUCTIONS : '')
+      + (note ? operatorNote(note) : ''),
     content,
     schema: SCHEMA,
     schemaName: 'film',
@@ -296,7 +364,7 @@ function render(id, meta, f) {
 
   return `// The film of \`${id}\` — the editorial layer, and nothing else.
 //
-// Generated by scripts/film/write-script.mjs (gpt-5.6-terra, which SAW the
+// Generated by scripts/film/write-script.mjs (${OPENAI_MODEL}, which SAW the
 // frames). Hand-edit freely: this file is the source of truth from here on and
 // is only regenerated when \`film.mjs\` is run with --rewrite.
 //

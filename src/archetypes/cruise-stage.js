@@ -48,7 +48,8 @@ import * as THREE from 'three';
 //                   tileRings, tileSectors, tileGap,
 //                   tileColorA, tileColorB, tileColorC,
 //                   jointColor, interiorColor, interiorRibs, ribColor,
-//                   rimColor, rimScallops, rimScallop, depth (override) },
+//                   rimColor, rimScallops, rimScallop, rimTabs, rimTabPhase,
+//                   depth (override) },
 //     separate,                          // 0..1 — slides the aeroshell away
 //     lightDir, ambient, metalness, roughness,
 //     attitude, offsetMeters, opacity, respectBand,
@@ -72,6 +73,11 @@ export function cruiseStage({
   backshell = null,
   heatShield = null,
   separate = null,
+  separatePart = 'shell',
+  separateOffset = [0, -1.5, 0],
+  separateRotation = [1.1, 0, 0.7],
+  carrierOpacity = null,
+  shellOpacity = null,
   // WHERE THE ARCHETYPE'S OWN ORIGIN SITS.
   //
   // 'centre' (the default, and every existing call site) puts it at the disc's
@@ -423,6 +429,13 @@ export function cruiseStage({
   // cone, wide at the bottom, holding the parachute) and a shallow blunt
   // HEAT SHIELD under that.
   // -----------------------------------------------------------------------
+  // Everything built so far is cruise-carrier hardware. Reparenting it under
+  // one transform lets a journey discard the carrier while leaving the
+  // aeroshell itself on the authored trajectory.
+  const carrierGroup = new THREE.Group();
+  for (const child of [...body.children]) carrierGroup.add(child);
+  body.add(carrierGroup);
+
   const shellGroup = new THREE.Group();
   body.add(shellGroup);
 
@@ -438,6 +451,46 @@ export function cruiseStage({
     // whole aeroshell, and the thing that gives it a waist.
     add(shellGroup, keep(new THREE.TorusGeometry(rb, h * 0.055, 8, 40)),
       mat(0x6a7078, { metalness: 0.55, roughness: 0.5 }), [0, at - h / 2, 0], [Math.PI / 2, 0, 0]);
+
+    // Longitudinal panel seams survive both the entry view and the later
+    // parachute view, giving the backshell persistent identity instead of a
+    // featureless lampshade silhouette. Each strip follows the cone flank.
+    const seams = Math.max(0, backshell.seams ?? 0);
+    if (seams > 0) {
+      const seamMat = mat(backshell.seamColor ?? 0x737b85, { roughness: 0.62, metalness: 0.42 });
+      const seamR = backshell.seamRadius ?? h * 0.018;
+      const seamLen = Math.sqrt(h * h + (rb - rt) * (rb - rt));
+      const seamGeo = keep(new THREE.CylinderGeometry(seamR, seamR, seamLen, 6));
+      for (let i = 0; i < seams; i++) {
+        const a = (i / seams) * Math.PI * 2;
+        const mesh = add(shellGroup, seamGeo, seamMat, [
+          Math.cos(a) * (rb + rt) * 0.5,
+          at,
+          Math.sin(a) * (rb + rt) * 0.5,
+        ]);
+        const axis = new THREE.Vector3(
+          Math.cos(a) * (rt - rb), h, Math.sin(a) * (rt - rb),
+        ).normalize();
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
+      }
+
+      // A raised mortar hatch at the crown and discrete shield latches around
+      // the shoulder make the two ends unlike one another and break the
+      // otherwise decorative radial symmetry.
+      const hatchMat = mat(backshell.hatchColor ?? 0x8f98a3, { roughness: 0.54, metalness: 0.5 });
+      add(shellGroup, keep(new THREE.CylinderGeometry(rt * 0.46, rt * 0.52, h * 0.055, 16)),
+        hatchMat, [0, at + h * 0.53, 0]);
+      const latches = Math.max(0, backshell.latches ?? seams);
+      if (latches > 0) {
+        const latchGeo = keep(new THREE.BoxGeometry(rb * 0.13, h * 0.075, rb * 0.055));
+        for (let i = 0; i < latches; i++) {
+          const a = (i / latches) * Math.PI * 2 + 0.13;
+          add(shellGroup, latchGeo, seamMat,
+            [Math.cos(a) * rb * 1.02, at - h * 0.48, Math.sin(a) * rb * 1.02],
+            [0, -a, 0]);
+        }
+      }
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -574,7 +627,7 @@ export function cruiseStage({
     for (let s = 0; s < secs; s++) {
       for (let j = 0; j < rings; j++) {
         const mesh = new THREE.Mesh(bandGeo[j], charAt(s, j));
-        mesh.rotation.y = s * aStep;
+        mesh.rotation.y = s * aStep + ((j * 0.381966) % 1) * aStep;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         shield.add(mesh);
@@ -638,11 +691,41 @@ export function cruiseStage({
       }));
     }
 
+    // Unevenly-spaced handling and separation tabs make the rim identifiable
+    // from either side and prevent a detached shield reading as a decorative
+    // radially-symmetric plate. They are part of the shield assembly, so an
+    // attached and a jettisoned instance necessarily carry the same pattern.
+    const tabs = Math.max(0, hs.rimTabs ?? 0);
+    if (tabs > 0) {
+      const tabMat = mat(hs.rimColor ?? 0x9c6a44, { roughness: 0.58, metalness: 0.42 });
+      const tabGeo = keep(new THREE.BoxGeometry(R * 0.14, thick * 0.90, R * 0.055));
+      for (let i = 0; i < tabs; i++) {
+        const uneven = i === 1 ? 0.18 : (i === 2 ? -0.11 : 0);
+        const a = (i / tabs) * Math.PI * 2 + (hs.rimTabPhase ?? 0) + uneven;
+        const tab = add(shield, tabGeo, tabMat,
+          [Math.cos(a) * R * 1.04, prof(R) + thick * 0.5, Math.sin(a) * R * 1.04],
+          [0, -a, 0]);
+        if (i === 0) tab.scale.x = 1.45;
+      }
+    }
+
     return depth;
   };
 
   let shieldDepth = 0;
   if (heatShield) shieldDepth = buildHeatShield(shellGroup, heatShield);
+
+  const materialsUnder = (root) => {
+    const found = new Set();
+    root.traverse((object) => {
+      if (!object.material) return;
+      const list = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of list) found.add(material);
+    });
+    return found;
+  };
+  const carrierMaterials = materialsUnder(carrierGroup);
+  const shellMaterials = materialsUnder(shellGroup);
 
   // --- the anchor ---------------------------------------------------------
   // The lowest point of the assembly, in the unit envelope. Derived from the
@@ -695,13 +778,17 @@ export function cruiseStage({
       body.position.y = -aftY * anchorK({ u, local, t });
 
       if (separate) {
-        // ONE EVENT, ONE DERIVATION. The gap starts at zero — coincident at the
-        // start is what "still attached" means — and the shell both drops and
-        // turns, because discarded hardware tumbles.
+        // ONE EVENT, ONE DERIVATION. Either half can be the discarded half;
+        // the other remains exactly at the authored vehicle pose.
         const s = Math.max(0, Math.min(1, separate({ u, local, t })));
-        shedVec.set(0, -s * 1.5, 0);
-        shellGroup.position.copy(shedVec);
-        shellGroup.rotation.set(s * 1.1, 0, s * 0.7);
+        const target = separatePart === 'carrier' ? carrierGroup : shellGroup;
+        shedVec.set(separateOffset[0] * s, separateOffset[1] * s, separateOffset[2] * s);
+        target.position.copy(shedVec);
+        target.rotation.set(
+          separateRotation[0] * s,
+          separateRotation[1] * s,
+          separateRotation[2] * s,
+        );
       }
 
       if (arrays && arrays.deploy) {
@@ -720,8 +807,17 @@ export function cruiseStage({
 
       const w = respectBand ? rebase.weight(meters) : 1;
       const o = opacity({ u, local, rebase }) * w;
+      const frame = { u, local, rebase, t };
+      const componentOpacity = (value) => {
+        if (value == null) return 1;
+        return Math.max(0, Math.min(1, typeof value === 'function' ? value(frame) : value));
+      };
+      const carrierO = componentOpacity(carrierOpacity);
+      const shellO = componentOpacity(shellOpacity);
       for (const m of materials) m.opacity = o;
-      group.visible = o > 0.004;
+      for (const m of carrierMaterials) m.opacity = o * carrierO;
+      for (const m of shellMaterials) m.opacity = o * shellO;
+      group.visible = o * Math.max(carrierO, shellO) > 0.004;
     },
     dispose() {
       for (const g of geometries) g.dispose();

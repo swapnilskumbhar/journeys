@@ -118,6 +118,48 @@ wrong thing, only that it shows something.
   Two independent placements read as two stickers, however well each is posed.
 - **A path and the thing travelling along it must come from one formula.**
   Otherwise the line goes one way and the subject goes another.
+- **A LAYER WITH NO `offsetMeters` SITS ON THE SPACECRAFT.** The origin is the
+  vehicle, so a ground object that omits the offset rides the rocket upward at
+  constant apparent size. `blocks` had no `offsetMeters` parameter *at all*,
+  which is how the launch complex in BOTH `earth-to-mars` and `earth-to-moon`
+  climbed to orbit with the vehicle for as long as those journeys existed. Use
+  `groundRelativeOffsetMeters` from `src/kit/ground-frame.js`; it exists to make
+  the convention impossible to forget.
+- **A fade window must OVERLAP the layer it hands off to, and be keyed to the
+  same quantity.** `stars` faded out over 70–110 km while `mars-sky` faded in
+  from 300 km — 200 km of overlap where a starfield composited over a lit
+  daytime sky and the regolith. Two envelopes keyed to different quantities
+  (one altitude, one frame width) will overlap wherever the frame law says they
+  do, which is not where you think.
+- **Moving a gate's numbers is not the same as closing it.** `foreground-rocks`
+  was "fixed" by taking its opening frame from 0.8 m to 0.9 m — but the beat is
+  shot at 1.4 m, so `frames(rebase, 0.9, 40)` still evaluated to **0.69**. A
+  rise band whose low end sits *under* the frame you are protecting cannot
+  switch a layer off, however far the numbers move inside it. Evaluate the
+  function at the beat's actual frame before believing it.
+- **`vehicle` centres its geometry on the origin**, running local y −0.5 → +0.5
+  of `lengthMeters`. A resting height of `0.42 × len` therefore buries the body
+  by 8% of its own length, before legs are counted. Anything standing on ground
+  needs its lowest local extent computed, not guessed.
+- **Adding π to one Euler term does not flip an object.** Under XYZ order,
+  `[pitch + π, yaw, roll]` composes as `Rx(pitch)·Rx(π)·Ry(yaw)·Rz(roll)` — the
+  half-turn lands in the MIDDLE of the chain, so yaw and roll are then applied
+  in a flipped frame. It is only equivalent to "same orientation, flipped" when
+  yaw and roll are both zero. Compose quaternions and post-multiply the turn, or
+  build the geometry so no flip is needed.
+- **A physically static structure must not read the clock.** Layers *do* get
+  `t`, and that is right for flame and flowing gas — but a celestial field using
+  it swims. `particleField`'s `spin` rotates the whole group on the wall clock
+  and `jitter` displaces every point on three sine terms of it; at a radius of
+  seven frames that is every star wandering through a box a frame across,
+  forever. Zodiacal light does not move against the stars. Neither should yours.
+- **Do not buy a metric with something that cannot be there.** `adjacent`
+  compares 16×10 cell averages, so a black frame with small bright objects
+  scores badly no matter how good it is — and a previous pass "solved" that by
+  laying a rust-coloured full-frame gradient over interplanetary space. The
+  number moved and the journey started lying. A starfield drawn over the ground
+  did the same for occupancy. If you cannot clear a bar honestly, say so and
+  stop; a metric problem is mine to fix, not yours to paint over.
 
 ## When something looks wrong and the gate is green
 
@@ -137,7 +179,37 @@ first and cost a wasted round.
 
 Do not take its architecture advice uncritically. It is good at diagnosis and it
 will sometimes propose an archetype for something that draws nothing; archetypes
-DRAW, and shared derivations belong in the journey's own `plan.js`.
+DRAW, and shared derivations belong in the journey's own `plan.js`. Rejecting a
+proposal with a stated reason is a good outcome and has been the right call
+several times — a `coastalTerrain` was rejected because `water` and `terrain` in
+one frame already ARE a coast, and a parity-based tile pattern was rejected
+because on a circular face it renders as a dartboard.
+
+## When the OBJECT is wrong, not the staging
+
+`critique.mjs` tells you what to fix. `scripts/model.mjs` fixes it:
+
+```bash
+node scripts/model.mjs <id> --files=src/archetypes/foo.js,src/journeys/<id>/layers.js \
+  --reference=src/journeys/<id>/REFERENCE.md --beats=21-24 --rounds=3 --gate
+```
+
+It is the third tool and the only one that writes: it looks at frames, edits the
+source that drew them, rebuilds, and looks again. Round 2 is the first time it
+sees its own work rendered, which is where most of the quality arrives. Use it
+for MODEL work — a silhouette that fails the name-the-object test, a shape that
+is the wrong shape. Do not use it for staging, pacing or beat selection; those
+need the whole journey in view and that is your job.
+
+Two things to know before you run it:
+
+- **It has no web access**, and no phrasing changes that. `--reference=` is a
+  READ-ONLY channel for research gathered by someone who does — that is what
+  `src/journeys/earth-to-mars/REFERENCE.md` is, and hardware built against it
+  came out markedly better than hardware built without.
+- **Only `--files` may be written**, and a file that did not exist is created
+  and deleted again if the build ends broken. Pass a new archetype path plus
+  `src/archetypes/index.js` plus the journey's `layers.js` to add one end to end.
 
 ## Reporting back
 

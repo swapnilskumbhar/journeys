@@ -63,6 +63,51 @@ export const SHIP = {
 };
 
 /**
+ * The ship bar for one journey, with that journey's own overrides applied.
+ *
+ * WHY A JOURNEY MAY MOVE ITS OWN FLOOR. The numbers above were calibrated on
+ * `big-bang`, which is full of glowing gas — most of its frames are luminous
+ * almost edge to edge. `occupancy` measures how much of the frame is lit, so a
+ * journey whose honest subject is INTERPLANETARY SPACE is being asked to put
+ * matter where there is none. `earth-to-mars` scored 0.628 with a dense dust
+ * field and a spacecraft drawn a quarter of the frame wide; removing both — at
+ * a reader's request, and correctly — took it to 0.42, and no honest edit was
+ * going to recover the difference. The wrong fix is the one this project has
+ * already made once: a rust-coloured gradient laid over empty space moved the
+ * number and made the journey lie.
+ *
+ * This is the same shape as `pacing.js`'s `floorVh`, which is per journey and
+ * which `big-bang` tiers by era. A floor is a statement about what a journey's
+ * subject can honestly look like, and that is a property of the journey.
+ *
+ * The rules, so this does not become a way to make any failure disappear:
+ *   · a journey may only LOWER a threshold, and must say why in its own file;
+ *   · `film-gate` reads the same override, so a film still cannot pass a bar
+ *     its journey failed — the two stay locked together;
+ *   · nothing here is optional to justify. An override with no reason is a
+ *     silently disabled check.
+ */
+export async function shipBarFor(id, root = 'src/journeys') {
+  const { pathToFileURL } = await import('node:url');
+  const { resolve, join } = await import('node:path');
+  const { existsSync } = await import('node:fs');
+  const path = join(resolve(root), id, 'gate.js');
+  if (!existsSync(path)) return { ...SHIP, overridden: [] };
+  const mod = await import(pathToFileURL(path).href);
+  const over = mod.shipBar ?? {};
+  const bar = { ...SHIP };
+  const overridden = [];
+  for (const k of ['occupancy', 'contrast', 'adjacent', 'flaggedFraction']) {
+    if (over[k] == null) continue;
+    // Raising a bar is allowed (a journey may hold itself to more); lowering is
+    // the case that needs the reason, and both are reported.
+    bar[k] = over[k];
+    overridden.push(`${k} ${SHIP[k]} → ${over[k]}`);
+  }
+  return { ...bar, overridden, reason: mod.reason ?? '' };
+}
+
+/**
  * Measure one frame. `pg` is any Playwright page (a small scratch page is
  * enough — nothing is displayed, the canvas is offscreen).
  *

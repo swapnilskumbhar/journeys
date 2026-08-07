@@ -141,6 +141,11 @@ export function vehicle({
   // vehicle without them is a smooth tube, and the tube is most of why the
   // stack read as a bollard rather than as a rocket.
   fins = null,        // { count, span, spread, thickness, at, phase, color }
+  // Ground-fixed launch hardware. Opt-in because this archetype is also used
+  // for free-flying spacecraft and landers.
+  launchMount = null, // { width, depth, opening, thickness, deckElevation,
+                      //   holdDowns, pylonHeight, pylonWidth, color, edgeColor,
+                      //   holdColor, offsetMeters, opacity }
   bands = 0,          // stripes per unit length; 0 = plain
   bandDepth = 0.75,
   plume = null,       // { span, r, core, edge, gain, soft, throttle }
@@ -152,7 +157,12 @@ export function vehicle({
   opacity = () => 1,
   respectBand = true,
 } = {}) {
+  // Ground equipment cannot be a child of the rotating, rising vehicle. The
+  // returned root owns two independently transformed frames: `group` for the
+  // craft and ground-fixed siblings for the mount and ignition effects.
+  const root = new THREE.Group();
   const group = new THREE.Group();
+  root.add(group);
   const materials = [];
   const geometries = [];
   const light = new THREE.Vector3(...lightDir).normalize();
@@ -240,6 +250,8 @@ export function vehicle({
   };
 
   let firstStageGroup = null;
+  let launchMountGroup = null;
+  const launchMountMeshes = [];
 
   for (const st of stages) {
     const g = addPart(st.shed, -1, null, st.tumble ?? 0);
@@ -248,7 +260,7 @@ export function vehicle({
     const rBot = st.r;
     const rTop = st.topR ?? st.r;
     const body = new THREE.Mesh(
-      keep(new THREE.CylinderGeometry(rTop, rBot, h, 28, 1, true)),
+      keep(new THREE.CylinderGeometry(rTop, rBot, h, 28, 1, st.closed !== true)),
       mat(st.color ?? 0xe6e9ee, { banded: st.banded !== false }),
     );
     body.position.y = y + h / 2;
@@ -399,6 +411,190 @@ export function vehicle({
     }
   }
 
+  // --- launch mount --------------------------------------------------------
+  // Four deck slabs leave an actual hole under the engines. The opening leads
+  // into a dark trench and an inclined deflector instead of ending on a flat
+  // ground plane; pylons and separate clamp rings carry the core and boosters
+  // above that hole. Everything is built in the same unit-length space as the
+  // vehicle, then independently scaled and placed in real metres each frame.
+  if (launchMount) {
+    launchMountGroup = new THREE.Group();
+    root.add(launchMountGroup);
+
+    const mw = launchMount.width ?? 0.34;
+    const md = launchMount.depth ?? 0.30;
+    const opening = Math.min(launchMount.opening ?? 0.13, mw * 0.72, md * 0.72);
+    const deckT = launchMount.thickness ?? 0.026;
+    const deckBase = launchMount.deckElevation ?? 0;
+    const deckTop = deckBase + deckT;
+    const pylonH = launchMount.pylonHeight ?? 0.065;
+    const mountTop = deckBase + pylonH;
+    const pylonW = launchMount.pylonWidth ?? 0.018;
+    const deckMat = mat(launchMount.color ?? 0x555a60);
+    const topMat = mat(launchMount.edgeColor ?? 0x252a30);
+    const holdMat = mat(launchMount.holdColor ?? 0x858c94);
+    const girderMat = mat(launchMount.girderColor ?? 0x30353b);
+    const trenchMat = mat(0x171a1e);
+
+    const addMountMesh = (geo, material, x, yy, z) => {
+      const mesh = new THREE.Mesh(keep(geo), material);
+      mesh.position.set(x, yy, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      launchMountGroup.add(mesh);
+      launchMountMeshes.push(mesh);
+      return mesh;
+    };
+    const addDeckSlab = (w, d, x, z) => {
+      addMountMesh(new THREE.BoxGeometry(w, deckT, d), deckMat, x, deckBase + deckT * 0.5, z);
+      // A contrasting top plate makes both the raised surface and its edge
+      // readable at the grazing pad camera angle.
+      addMountMesh(new THREE.BoxGeometry(w * 0.985, deckT * 0.055, d * 0.985), topMat,
+        x, deckBase + deckT * 1.015, z);
+    };
+
+    const sideW = (mw - opening) * 0.5;
+    const bridgeD = (md - opening) * 0.5;
+    addDeckSlab(sideW, md, -(opening + sideW) * 0.5, 0);
+    addDeckSlab(sideW, md, (opening + sideW) * 0.5, 0);
+    addDeckSlab(opening, bridgeD, 0, -(opening + bridgeD) * 0.5);
+    addDeckSlab(opening, bridgeD, 0, (opening + bridgeD) * 0.5);
+
+    // Dark perimeter girders hang below the pale deck surface. At a grazing
+    // pad view this exposed edge is what makes the apron read as elevated
+    // structure with daylight beneath it rather than as paint on the ground.
+    if (launchMount.edgeGirders) {
+      const beamH = Math.max(deckT * 0.65, 0.008);
+      const beamW = Math.max(pylonW * 1.4, 0.008);
+      const beamY = deckBase - beamH * 0.5;
+      addMountMesh(new THREE.BoxGeometry(mw, beamH, beamW), girderMat,
+        0, beamY, -md * 0.5 + beamW * 0.5);
+      addMountMesh(new THREE.BoxGeometry(mw, beamH, beamW), girderMat,
+        0, beamY, md * 0.5 - beamW * 0.5);
+      addMountMesh(new THREE.BoxGeometry(beamW, beamH, md), girderMat,
+        -mw * 0.5 + beamW * 0.5, beamY, 0);
+      addMountMesh(new THREE.BoxGeometry(beamW, beamH, md), girderMat,
+        mw * 0.5 - beamW * 0.5, beamY, 0);
+    }
+
+    // A raised deck needs visible load paths to grade. Eight unevenly-spaced
+    // piers leave daylight beneath the slab instead of turning it into a box.
+    if (deckBase > 0) {
+      const pierPositions = [
+        [-0.43, -0.43], [-0.43, 0], [-0.43, 0.43],
+        [0.43, -0.43], [0.43, 0.43],
+        [0, -0.43], [0.18, 0.43], [-0.16, 0.43],
+      ];
+      for (const [px, pz] of pierPositions) {
+        addMountMesh(
+          new THREE.BoxGeometry(pylonW * 1.75, deckBase, pylonW * 1.75),
+          holdMat, px * mw, deckBase * 0.5, pz * md,
+        );
+      }
+    }
+
+    // The trench floor continues beyond the deck on one side, visibly giving
+    // the exhaust somewhere to leave the mount.
+    addMountMesh(
+      new THREE.BoxGeometry(
+        opening * 0.82, deckT * 0.12, md * (launchMount.trenchLength ?? 1.48),
+      ),
+      trenchMat, 0, Math.max(0.0015, deckBase * 0.08),
+      md * (launchMount.trenchOffset ?? 0.42),
+    );
+    // Dark sidewalls expose the trench as a channel passing under the deck,
+    // while the offset deflector breaks the decorative radial symmetry.
+    const trenchWallH = Math.max(deckT * 0.55, deckBase * 0.72);
+    for (const side of [-1, 1]) {
+      addMountMesh(
+        new THREE.BoxGeometry(
+          pylonW * 1.35, trenchWallH,
+          md * (launchMount.trenchWallLength ?? 1.30),
+        ),
+        topMat, side * opening * 0.53, trenchWallH * 0.5,
+        md * (launchMount.trenchWallOffset ?? 0.28),
+      );
+    }
+    const deflectorH = launchMount.deflectorHeight
+      ?? Math.max(deckT * 1.2, deckBase * 0.88);
+    const deflectorL = opening * (launchMount.deflectorLength ?? 1.20);
+    const deflectorW = opening * (launchMount.deflectorWidth ?? 0.78);
+    const deflectorShape = new THREE.Shape();
+    deflectorShape.moveTo(-deflectorL * 0.5, 0);
+    deflectorShape.lineTo(deflectorL * 0.5, 0);
+    deflectorShape.lineTo(deflectorL * 0.5, deflectorH);
+    deflectorShape.closePath();
+    const deflectorGeo = new THREE.ExtrudeGeometry(deflectorShape, {
+      depth: deflectorW, bevelEnabled: false,
+    });
+    deflectorGeo.translate(0, 0, -deflectorW * 0.5);
+    const deflector = addMountMesh(
+      deflectorGeo, holdMat, 0, 0,
+      opening * (launchMount.deflectorOffset ?? 0.52),
+    );
+    deflector.rotation.y = Math.PI * 0.5;
+
+    const base = stages[0] ?? { r: 0.045 };
+    const ringTube = Math.max(pylonW * 0.28, 0.0035);
+    const addRing = (radius, x, z) => {
+      const ring = addMountMesh(
+        new THREE.TorusGeometry(radius, ringTube, 8, 28), holdMat,
+        x, mountTop, z,
+      );
+      ring.rotation.x = Math.PI * 0.5;
+    };
+    addRing(base.r * 1.18, 0, 0);
+
+    const postCount = launchMount.holdDowns ?? 4;
+    const postR = base.r * 1.62;
+    const postH = Math.max(0.004, mountTop - deckTop);
+    for (let i = 0; i < postCount; i++) {
+      const a = (i / postCount) * Math.PI * 2 + Math.PI / postCount;
+      addMountMesh(
+        new THREE.BoxGeometry(pylonW, postH, pylonW),
+        holdMat,
+        Math.cos(a) * postR, deckTop + postH * 0.5,
+        Math.sin(a) * postR,
+      );
+      const clamp = addMountMesh(
+        new THREE.BoxGeometry(postR - base.r * 0.92, pylonW * 0.72, pylonW * 0.72),
+        holdMat,
+        Math.cos(a) * (postR + base.r * 0.92) * 0.5, mountTop,
+        Math.sin(a) * (postR + base.r * 0.92) * 0.5,
+      );
+      clamp.rotation.y = -a;
+    }
+
+    // Strap-ons receive their own clamps and outer posts rather than sharing a
+    // decorative symmetric ring with the core.
+    if (boosters && (boosters.count ?? 2) > 0) {
+      const n = boosters.count ?? 2;
+      const br = boosters.r ?? base.r * 0.55;
+      const radial = boosters.radial ?? (base.r + br) * 0.97;
+      const phase = boosters.phase ?? 0;
+      for (let i = 0; i < n; i++) {
+        const a = phase + (i / n) * Math.PI * 2;
+        const bx = Math.cos(a) * radial;
+        const bz = Math.sin(a) * radial;
+        addRing(br * 1.14, bx, bz);
+        const boosterPostH = Math.max(0.004, mountTop - deckTop);
+        addMountMesh(
+          new THREE.BoxGeometry(pylonW * 1.15, boosterPostH, pylonW * 1.15),
+          holdMat,
+          bx + Math.cos(a) * br * 1.35, deckTop + boosterPostH * 0.5,
+          bz + Math.sin(a) * br * 1.35,
+        );
+        const clamp = addMountMesh(
+          new THREE.BoxGeometry(br * 1.28, pylonW * 0.68, pylonW * 0.68),
+          holdMat,
+          bx + Math.cos(a) * br * 0.70, mountTop,
+          bz + Math.sin(a) * br * 0.70,
+        );
+        clamp.rotation.y = -a;
+      }
+    }
+  }
+
   if (capsule) {
     const g = addPart(capsule.shed, -1);
     const h = capsule.span;
@@ -542,6 +738,12 @@ export function vehicle({
   let plumeCollar = null;
   let plumeMat = null;
   let collarMat = null;
+  let groundExhaustGroup = null;
+  let groundJetMat = null;
+  let groundJetEdgeMat = null;
+  let groundSmokeMat = null;
+  let groundSteamMat = null;
+  const groundCloudLobes = [];
   if (plume) {
     plumeMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -589,6 +791,154 @@ export function vehicle({
     group.add(plumeCollar);
   }
 
+  // Pad ignition is not a longer airborne cone. The naming event is the plume
+  // striking the mount, turning through the trench, and entraining deluge water
+  // into a broad low cloud. It is opt-in under `plume.ground`; all other vehicle
+  // calls retain the former single-plume behaviour.
+  if (plume?.ground) {
+    const ground = plume.ground;
+    groundExhaustGroup = new THREE.Group();
+    root.add(groundExhaustGroup);
+
+    groundJetMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(ground.core ?? 0xfff4d8),
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    groundJetEdgeMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(ground.edge ?? plume.edge ?? 0xff7a2a),
+      transparent: true,
+      opacity: 0,
+      blending: THREE.NormalBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    groundSmokeMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(ground.smoke ?? 0x8d8274),
+      emissive: new THREE.Color(ground.smoke ?? 0x8d8274).multiplyScalar(0.06),
+      metalness: 0,
+      roughness: 1,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    groundSteamMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(ground.steam ?? 0xb8b7b0),
+      emissive: new THREE.Color(ground.steam ?? 0xb8b7b0).multiplyScalar(0.045),
+      metalness: 0,
+      roughness: 1,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    materials.push(groundJetMat, groundJetEdgeMat, groundSmokeMat, groundSteamMat);
+
+    const deckT = launchMount?.thickness ?? 0.026;
+    const deckBase = launchMount?.deckElevation ?? 0;
+    const deckTop = deckBase + deckT;
+    const jetTop = deckBase + (launchMount?.pylonHeight ?? 0.065);
+    const jetBottom = Math.max(0.002, deckBase * 0.12);
+    const jetH = Math.max(0.018, jetTop - jetBottom);
+    const jetR = Math.max(0.006, (plume.r ?? 0.05) * 0.30);
+    const jetGeo = keep(new THREE.CylinderGeometry(jetR * 0.42, jetR * 0.72, jetH, 12, 1, true));
+    const jetEdgeGeo = keep(new THREE.CylinderGeometry(jetR * 0.82, jetR * 1.55, jetH, 14, 1, true));
+    const addGroundJet = (x, z) => {
+      const edge = new THREE.Mesh(jetEdgeGeo, groundJetEdgeMat);
+      edge.position.set(x, jetBottom + jetH * 0.5, z);
+      edge.renderOrder = 4;
+      groundExhaustGroup.add(edge);
+      const core = new THREE.Mesh(jetGeo, groundJetMat);
+      core.position.copy(edge.position);
+      core.renderOrder = 5;
+      groundExhaustGroup.add(core);
+    };
+    const base = stages[0] ?? { r: 0.045 };
+    const coreN = Math.max(1, stages[0]?.nozzles ?? 1);
+    for (let i = 0; i < coreN; i++) {
+      const a = (i / coreN) * Math.PI * 2;
+      const rr = coreN === 1 ? 0 : base.r * 0.52;
+      addGroundJet(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    if (boosters && (boosters.count ?? 2) > 0) {
+      const n = boosters.count ?? 2;
+      const br = boosters.r ?? base.r * 0.55;
+      const radial = boosters.radial ?? (base.r + br) * 0.97;
+      const phase = boosters.phase ?? 0;
+      for (let i = 0; i < n; i++) {
+        const a = phase + (i / n) * Math.PI * 2;
+        addGroundJet(Math.cos(a) * radial, Math.sin(a) * radial);
+      }
+    }
+
+    // Two unequal hot fans turn out of the trench at grade. Their small cores
+    // are the only added geometry allowed to clip; the cloud around them stays
+    // normal-blended and mid-tone.
+    const sideLen = ground.radius ?? 0.28;
+    const sideJetGeo = keep(new THREE.CylinderGeometry(
+      jetR * 1.55, jetR * 0.55, sideLen, 14, 1, true,
+    ));
+    for (const side of [-1, 1]) {
+      const short = side < 0 ? 0.72 : 1;
+      const edge = new THREE.Mesh(sideJetGeo, groundJetEdgeMat);
+      edge.scale.y = short;
+      edge.position.set(side * sideLen * short * 0.5, jetBottom + jetR * 1.3, (launchMount?.depth ?? 0.30) * 0.28);
+      edge.rotation.z = Math.PI * 0.5;
+      edge.renderOrder = 4;
+      groundExhaustGroup.add(edge);
+      const core = new THREE.Mesh(sideJetGeo, groundJetMat);
+      core.scale.set(0.42, short * 0.62, 0.42);
+      core.position.set(side * sideLen * short * 0.34, jetBottom + jetR * 1.3, (launchMount?.depth ?? 0.30) * 0.28);
+      core.rotation.z = Math.PI * 0.5;
+      core.renderOrder = 5;
+      groundExhaustGroup.add(core);
+    }
+
+    const smokeRadius = ground.smokeRadius ?? 0.34;
+    const cloudGeo = keep(new THREE.SphereGeometry(1, 12, 8));
+    const hash = (n) => {
+      const h = Math.sin(n * 91.173 + 17.31) * 43758.5453;
+      return h - Math.floor(h);
+    };
+    const cloudCount = ground.cloudCount ?? 64;
+    const clearRadius = ground.clearRadius ?? 0.06;
+    const steamLift = ground.steamLift ?? 0.135;
+    const smokeLift = ground.smokeLift ?? 0.060;
+    const steamRadiusMin = ground.steamRadiusMin ?? 0.036;
+    const steamRadiusRange = ground.steamRadiusRange ?? 0.056;
+    const smokeRadiusMin = ground.smokeRadiusMin ?? 0.044;
+    const smokeRadiusRange = ground.smokeRadiusRange ?? 0.082;
+    const steamVerticalScale = ground.steamVerticalScale ?? 1.55;
+    const smokeVerticalScale = ground.smokeVerticalScale ?? 0.58;
+    const cloudStretch = ground.cloudStretch ?? 1.40;
+    const cloudStretchJitter = ground.cloudStretchJitter ?? 1.05;
+    for (let i = 0; i < cloudCount; i++) {
+      const steam = i % 3 === 0;
+      const side = i % 2 === 0 ? -1 : 1;
+      const along = clearRadius + Math.pow(hash(i + 2), 0.72) * smokeRadius;
+      const cross = (hash(i + 41) - 0.5) * smokeRadius * (steam ? 1.10 : 1.55);
+      const low = jetBottom + hash(i + 83) * (steam ? steamLift : smokeLift);
+      const radius = (steam ? steamRadiusMin : smokeRadiusMin)
+        + hash(i + 121) * (steam ? steamRadiusRange : smokeRadiusRange);
+      const lobe = new THREE.Mesh(cloudGeo, steam ? groundSteamMat : groundSmokeMat);
+      lobe.position.set(side * along, low, cross);
+      lobe.scale.set(
+        radius * (cloudStretch + hash(i + 151) * cloudStretchJitter),
+        radius * (steam ? steamVerticalScale : smokeVerticalScale), radius,
+      );
+      lobe.renderOrder = 3;
+      groundExhaustGroup.add(lobe);
+      groundCloudLobes.push({
+        mesh: lobe,
+        basePosition: lobe.position.clone(),
+        baseScale: lobe.scale.clone(),
+        phase: hash(i + 199) * Math.PI * 2,
+      });
+    }
+  }
+
   // Opacity is resolved once here rather than by traversing every frame: each
   // shed part owns its own meshes (they fade with the part), and everything
   // else — dish, panel wings — takes the vehicle's plain opacity.
@@ -613,7 +963,7 @@ export function vehicle({
   const shedVec = new THREE.Vector3();
 
   return {
-    group,
+    group: root,
     materials,
     update({ u, local, rebase, t }) {
       const meters = typeof lengthMeters === 'function'
@@ -634,6 +984,22 @@ export function vehicle({
 
       const w = respectBand ? rebase.weight(meters) : 1;
       const o = opacity({ u, local, rebase }) * w;
+
+      if (launchMountGroup) {
+        launchMountGroup.scale.setScalar(rebase.toWorld(meters));
+        const mountRaw = typeof launchMount.offsetMeters === 'function'
+          ? launchMount.offsetMeters({ u, local, rebase, t })
+          : (launchMount.offsetMeters ?? [0, 0, 0]);
+        const [mx, my, mz] = Array.isArray(mountRaw) ? mountRaw : [mountRaw, 0, 0];
+        launchMountGroup.position.set(rebase.toWorld(mx), rebase.toWorld(my), rebase.toWorld(mz));
+        const mo = Math.max(0, Math.min(1,
+          typeof launchMount.opacity === 'function'
+            ? launchMount.opacity({ u, local, rebase, t })
+            : (launchMount.opacity ?? 1),
+        ));
+        launchMountGroup.visible = mo > 0.004;
+        for (const mesh of launchMountMeshes) mesh.material.opacity = mo;
+      }
 
       // Materials are SHARED between parts (one nozzle material serves five
       // nozzles), so the per-part opacity is written mesh by mesh in stack
@@ -686,6 +1052,40 @@ export function vehicle({
         plumeCollar.position.y = (-0.5 + at) + (plumeCore.position.y - (-0.5 + at)) * 1.05;
         collarMat.uniforms.uOpacity.value = o * th * (plume.smokeGain ?? 0.45);
         plumeCollar.visible = collarMat.uniforms.uOpacity.value > 0.004;
+
+        if (groundExhaustGroup) {
+          const ground = plume.ground;
+          const groundRaw = typeof ground.offsetMeters === 'function'
+            ? ground.offsetMeters({ u, local, rebase, t })
+            : (ground.offsetMeters ?? launchMount?.offsetMeters ?? [0, 0, 0]);
+          const resolvedGround = typeof groundRaw === 'function'
+            ? groundRaw({ u, local, rebase, t })
+            : groundRaw;
+          const [gx, gy, gz] = Array.isArray(resolvedGround) ? resolvedGround : [resolvedGround, 0, 0];
+          groundExhaustGroup.position.set(rebase.toWorld(gx), rebase.toWorld(gy), rebase.toWorld(gz));
+          groundExhaustGroup.scale.setScalar(rebase.toWorld(meters));
+          const impact = Math.max(0, Math.min(1,
+            typeof ground.gain === 'function'
+              ? ground.gain({ u, local, rebase, t })
+              : (ground.gain ?? 1),
+          ));
+          const go = o * th * impact;
+          groundJetMat.opacity = Math.min(1, go * (ground.coreGain ?? 1.4));
+          groundJetEdgeMat.opacity = Math.min(0.72, go * (ground.edgeGain ?? 0.58));
+          groundSmokeMat.opacity = Math.min(0.78, go * (ground.smokeGain ?? 0.55));
+          groundSteamMat.opacity = Math.min(0.72, go * (ground.steamGain ?? 0.68));
+          const clock = t ?? 0;
+          for (const lobe of groundCloudLobes) {
+            const wave = Math.sin(clock * 1.15 + lobe.phase);
+            const breathe = 1 + wave * 0.13;
+            lobe.mesh.scale.copy(lobe.baseScale).multiplyScalar(breathe);
+            lobe.mesh.position.copy(lobe.basePosition);
+            lobe.mesh.position.y += wave * 0.010;
+            lobe.mesh.position.x += Math.sin(clock * 0.63 + lobe.phase) * 0.012;
+            lobe.mesh.position.z += Math.sin(clock * 0.47 + lobe.phase * 1.7) * 0.007;
+          }
+          groundExhaustGroup.visible = go > 0.004;
+        }
       }
 
       group.visible = o > 0.004;

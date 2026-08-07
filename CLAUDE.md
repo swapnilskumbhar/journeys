@@ -79,6 +79,19 @@ of the Earth.
   naming the file and the symbol. `--brief` writes a self-contained instruction
   for `journey-builder`. This is the INFORMED review and it is deliberately not
   `review.mjs` — see the pairing below.
+- **Make the object right** — `node scripts/model.mjs <id> --files=a.js,b.js
+  [--reference=REFERENCE.md] [--beats=21-24] [--focus="…"] [--model=gpt-5.6-sol]
+  [--rounds=3] [--effort=high] [--max-usd=] [--gate] [--dry-run]`. The third
+  tool and **the only one that writes**: it looks at frames, edits the source
+  that drew them, rebuilds, and looks again. `review` describes, `critique`
+  prescribes, `model` fixes. Creation stays agent-backed for a JOURNEY — that
+  is an edit → gate → read-failure → edit loop over the whole thing — but an
+  archetype's quality is visible in one frame, so the loop is small enough to be
+  a script. Round 2 is the first time it sees its own work rendered and that is
+  where most of the quality arrives. Scope is the operator's: only `--files`
+  may be written, a new file is created and deleted again if the build ends
+  broken, and `--reference` is READ-ONLY. Use it for MODELS; staging, pacing and
+  beat selection need the whole journey in view and stay with the agent.
 - Does the picture show what the copy claims? — `node scripts/review.mjs <id>
   [--film] [--via=terra|agent] [--diff]`. The BLIND review: frames only, no
   captions, no source. **Keep these two apart.** Blindness is what makes
@@ -971,3 +984,86 @@ Video export is **done** — see the film pipeline above. `export-video.mjs` and
 this project and only worth keeping until the good parts they still hold (the
 ASS caption builder, the `gradfun` encode settings) are confirmed fully carried
 over. `make-thumbnails.mjs` and `make-postkit.mjs` are still un-retargeted.
+
+## The modeller, and the reference channel (2026-08-07, `earth-to-mars` rework)
+
+`scripts/model.mjs` is the first tool here that WRITES. The lessons that shaped
+it, and the defects it was built to catch:
+
+- **The gate can be green, the sweep clean, and the picture still bad — and only
+  a person scrolling it will tell you.** Every defect fixed in this pass was
+  reported by the user, not by a metric: a launch tower that was one black box,
+  buildings that rode the rocket into orbit, dust that swam across space, a
+  parachute that was a ball, a heat shield that was a wooden plate, a lander
+  buried in the ground. `frame-check` scored all of it as passing.
+- **A journey needs an agent; a MODEL does not.** The asymmetry this file
+  recorded ("one API call cannot run an edit → gate → read-failure loop") is
+  true of a journey and false of an archetype, whose whole quality is visible in
+  one frame. `model.mjs` runs that loop in a script: edit → build → capture →
+  look → edit. What keeps it safe is scope, not judgement — only `--files` may
+  be written, there is no discovery step, and a broken build is never allowed to
+  become the base for the next round.
+- **Exact-anchor edits beat whole-file rewrites, and the FAILURE FEEDBACK is
+  what makes them work.** Whole files cost output tokens at 6× input and invite
+  silently dropping code the model was not thinking about; an anchor cannot
+  delete what it does not name. The cost is that a `find` which misses, or
+  matches twice, is a failed edit — so those are collected and fed back verbatim
+  next round. A model told "your anchor matched 2 places" fixes it immediately;
+  one told nothing repeats it forever.
+- **Neither Terra nor Sol can search the web, and no phrasing changes that.**
+  They are bounded API calls, not agents. `--reference=` is the honest
+  substitute: research gathered by whoever runs the tool, passed as READ-ONLY
+  text. Keeping it separate from `--files` is the point — evidence the model can
+  rewrite is not evidence. `src/journeys/earth-to-mars/REFERENCE.md` is the
+  worked example, and hardware built against it came out markedly better.
+- **Ask what the object IS before tuning what it looks like.** `fins` was
+  declared in `vehicle` and never implemented — the string appeared exactly once
+  in the file, the parameter — under a comment correctly stating that a launcher
+  without them "is a smooth tube". The diagnosis was written and the fix never
+  was, and this file had recorded fins as applied. `grep -c` is the check.
+
+Defects worth not rediscovering:
+
+- **A layer with no `offsetMeters` sits on the spacecraft**, because the origin
+  is the spacecraft. `blocks` had no such parameter at all, so the launch
+  complex in BOTH `earth-to-mars` and `earth-to-moon` climbed to orbit with the
+  vehicle for as long as those journeys existed. `src/kit/ground-frame.js` now
+  exports `groundRelativeOffsetMeters` to make the convention unforgettable.
+- **A fade window must overlap the layer it hands off to, keyed to the same
+  quantity.** `stars` faded over 70–110 km while `mars-sky` faded in from
+  300 km, so a starfield composited over lit ground for 200 km of altitude —
+  and inflated that beat's occupancy while doing it.
+- **Moving a gate's numbers is not closing it.** `frames(rebase, 0.9, 40)` at a
+  1.4 m frame still evaluates to 0.69. A rise band whose low end sits under the
+  frame being protected cannot switch a layer off. Evaluate the function at the
+  beat's real frame before believing it.
+- **One gain cannot serve a disc and a 23° lobe.** `backdrop`'s `sunGain` scaled
+  the sun disc and its `pow(c, 8)` glare together, so three passes oscillated
+  between a grey sun and a blown sky, each measuring the other as worse.
+  `glareGain` separates them; a small hard source may clip, a wide soft one
+  never may. `clip` reads 0.006 against a 0.06 bar throughout — **the gate is
+  structurally blind to overexposure**, and occupancy actively rewards a wash.
+- **Adding π to one Euler term does not flip an object.** `[pitch + π, yaw,
+  roll]` composes as `Rx(pitch)·Rx(π)·Ry(yaw)·Rz(roll)` — the half-turn lands
+  mid-chain, so yaw and roll are applied in a flipped frame. Correct only when
+  both are zero. Compose quaternions and post-multiply.
+- **`vehicle` centres geometry on the origin**, y −0.5 → +0.5 of `lengthMeters`,
+  so a resting height of `0.42 × len` buries the body by 8% of its length.
+- **A physically static structure must not read the clock.** `spin` rotates a
+  `particleField` group on the wall clock and `jitter` displaces every point on
+  three sine terms of it — at a 7-frame radius, every star in the galactic band
+  wandering through a box a frame across, permanently. Layers may use `t`; a
+  celestial field may not.
+- **Do not buy a metric with something that cannot be there.** `adjacent`
+  compares 16×10 cell averages, so a black frame full of small bright objects
+  scores badly however good it is — and a pass "solved" that with a rust
+  full-frame gradient over interplanetary space. The number moved and the
+  journey started lying. If a bar cannot be cleared honestly, say so; a metric
+  problem is not fixed by painting the picture.
+- **The downscale cache is a second stale-frames trap.** `reviewer.mjs` keyed
+  its 768px JPEGs on filename alone, and a re-capture writes `beat-23.png` over
+  `beat-23.png` — so the provenance guard passed while the upload was a day old
+  and the entire report, diff included, described replaced code.
+- **Never pipe a gate or a multi-round run through `tail`.** It reports tail's
+  exit code, so a failure reads as a pass, and it discards everything above —
+  which on `model.mjs` is the whole record of what was changed and why.

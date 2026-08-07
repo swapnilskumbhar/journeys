@@ -21,7 +21,7 @@
 import { chromium } from 'playwright';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { measure, sigDistance, mean, fmt, MASKS, GATE, SHIP } from './lib/frame-metrics.mjs';
+import { measure, sigDistance, mean, fmt, MASKS, GATE, SHIP, shipBarFor } from './lib/frame-metrics.mjs';
 import { filmPaths } from './film/lib/env.mjs';
 import { run, duration, loudness, meanVolumeIn, invertWindows } from './film/lib/ffmpeg.mjs';
 import { makeCurve } from './film/solve-timeline.mjs';
@@ -50,7 +50,11 @@ const BAR = {
   // this asks whether anything moved while a sentence was being spoken. A
   // fully frozen shot scores ~0.
   motion: 1.2,
-  // The journey-level means, held to the same bar the stills were held to.
+  // The journey-level means, held to the same bar the stills were held to —
+  // INCLUDING a floor the journey moved for itself. `frame-metrics.mjs` is
+  // shared by both gates precisely so a film cannot pass a bar its journey
+  // failed; that guarantee only holds if the override travels with it, so
+  // these three are replaced below from the journey's own `gate.js`.
   meanOccupancy: SHIP.occupancy,
   meanContrast: SHIP.contrast,
   // Fraction of shots allowed to fail any picture check. Same 15% slack
@@ -65,6 +69,20 @@ const BAR = {
   // Picture and sound must agree on how long the film is.
   durationTolerance: 0.15,
 };
+
+// Apply the journey's own floor, if it declares one. Done here rather than in
+// the literal above because it needs `id` and an await, and done AT ALL because
+// the still gate and the film gate sharing one ruler is a guarantee this repo
+// relies on — a film held to the shared bar while its journey is held to a
+// lower one would fail for a reason that has nothing to do with the film.
+{
+  const bar = await shipBarFor(id);
+  BAR.meanOccupancy = bar.occupancy;
+  BAR.meanContrast = bar.contrast;
+  BAR.flaggedFraction = bar.flaggedFraction;
+  BAR.overridden = bar.overridden;
+  BAR.overrideReason = bar.reason;
+}
 
 const paths = filmPaths(id);
 const problems = [];

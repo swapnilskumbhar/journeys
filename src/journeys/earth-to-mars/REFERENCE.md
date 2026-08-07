@@ -186,3 +186,83 @@ do that, say so as an archetype gap rather than tuning it.
   jpl.nasa.gov, science.nasa.gov
 - NASA SP-2009-566, Human Exploration of Mars Design Reference Architecture 5.0
 - Lockheed Martin, aeroshell overview
+
+---
+
+# Part 2 — entry, descent and landing (added 2026-08-07)
+
+Gathered for the `model.mjs` builder, which has no web access. Everything below
+is about the beats 21–28 sequence.
+
+## Aeroshell attitude during entry
+
+This is the fact the current code gets wrong, and it is worth stating plainly:
+**an entry capsule flies heat-shield-first, at a deliberate angle of attack, and
+its plasma sheath wraps that windward face.** It does not fly edge-on and the
+sheath is not a separate object beside it.
+
+| property | value |
+| --- | --- |
+| MSL trim angle of attack | **16°** — deliberate, not incidental |
+| MSL hypersonic lift/drag | 0.24 |
+| how the angle is set | tungsten ballast ejected before entry to offset the centre of gravity |
+| at zero angle of attack | the body centreline is parallel to the direction of travel |
+| shock stand-off | varies with angle of attack; the shock sits just off the windward face |
+| MSL notable | boundary-layer turbulent transition happens BEFORE peak heating |
+
+Consequences for the model:
+
+- The blunt tiled face points **into the velocity vector**, offset by ~16°.
+- The shock/sheath is a thin cap standing off **that face**, not a cone beside
+  the vehicle, and the wake trails from the shoulder, opposite the velocity.
+- Peak heating is not the same picture as entry interface: the vehicle is
+  deeper, the sheath is far brighter, and the flow is turbulent rather than
+  smooth.
+
+## The landing sequence, in order
+
+Every NASA Mars lander since Viking uses the same chain, and each step must
+visibly come from the previous configuration:
+
+1. cruise stage separates (before entry interface)
+2. entry, heat-shield forward, plasma sheath
+3. parachute deploys from the backshell
+4. **heat shield is jettisoned** — it falls away and the lander is exposed
+5. landing legs deploy, radar altimeter activates
+6. lander separates from the backshell and begins powered flight
+7. terminal descent on thrusters, then touchdown
+
+## Lander geometry
+
+| property | value |
+| --- | --- |
+| heritage | Viking → Phoenix → InSight are one family |
+| legs | 4, Viking-style |
+| InSight leg | crushable honeycomb in the load path; stabilisers on steel pins that bend on impact |
+| Viking leg | spring-like feet |
+| Phoenix thrusters | **12 pulsed on/off thrusters around the bottom edge**, used for the final ~30 seconds |
+| deck | a flat platform carrying the instruments, above the leg attachment |
+
+A lander reads as a lander because of the **deck-on-legs** silhouette: a wide
+flat body, four legs splayed well outside the body radius, footpads at the
+bottom, and thruster clusters around the lower edge.
+
+## A note on the launch stack, for consistency
+
+Confirming the Part 1 reference against a second real vehicle: Falcon Heavy is
+three cores strapped together — two side boosters flanking a centre core — with
+the side boosters carrying **nose cones** rather than the interstage the centre
+core has, and attaching via reinforced interstage connections. The engines sit
+in an **octaweb**: nine engines in an octagonal pattern, not a single nozzle.
+
+This corroborates the Part 1 rule: what identifies a heavy launcher at a glance
+is a flanked, multi-lobed base with a visible engine cluster, and that the
+strap-ons are visually DIFFERENT from the core they flank rather than copies of
+it.
+
+## Sources
+
+- NASA/JPL, MSL entry capsule aerothermodynamics and heatshield design (NTRS)
+- NASA Science, "How We Land on Mars"; Mars Phoenix mission pages
+- NASA, InSight EDL trajectory (NTRS); on-deck seismology lessons from InSight
+- Falcon Heavy configuration and grid-fin/booster differences

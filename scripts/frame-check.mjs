@@ -32,7 +32,7 @@ import { readdirSync } from 'node:fs';
 // The RULER lives in one module so `film-gate.mjs` scores a film's own frames
 // with the same numbers the stills were gated on. This file keeps the POLICY:
 // which beats to sample, and what the bar is.
-import { measure, sigDistance, mean, fmt, GATE, SHIP, MASKS } from './lib/frame-metrics.mjs';
+import { measure, sigDistance, mean, fmt, GATE, SHIP, MASKS, shipBarFor } from './lib/frame-metrics.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n, d) => {
@@ -140,16 +140,20 @@ for (const id of targets) {
   // The ship bar. Reported as named shortfalls rather than one boolean,
   // because "which of the four did I miss, and by how much" is the whole
   // content of the next iteration.
+  // The journey's own bar, if it declares one. See `shipBarFor` for why a
+  // journey is allowed to move its floor and what it owes in return.
+  const bar = await shipBarFor(id);
   const shortfalls = [];
-  if (summary.meanOccupancy < SHIP.occupancy)
-    shortfalls.push(`occupancy ${fmt(summary.meanOccupancy)} < ${SHIP.occupancy}`);
-  if (summary.meanContrast < SHIP.contrast)
-    shortfalls.push(`contrast ${fmt(summary.meanContrast)} < ${SHIP.contrast}`);
-  if (summary.meanAdjacent < SHIP.adjacent)
-    shortfalls.push(`adjacent ${summary.meanAdjacent.toFixed(1)} < ${SHIP.adjacent}`);
+  if (summary.meanOccupancy < bar.occupancy)
+    shortfalls.push(`occupancy ${fmt(summary.meanOccupancy)} < ${bar.occupancy}`);
+  if (summary.meanContrast < bar.contrast)
+    shortfalls.push(`contrast ${fmt(summary.meanContrast)} < ${bar.contrast}`);
+  if (summary.meanAdjacent < bar.adjacent)
+    shortfalls.push(`adjacent ${summary.meanAdjacent.toFixed(1)} < ${bar.adjacent}`);
   const flaggedFrac = flags.length / (frames.length || 1);
-  if (flaggedFrac > SHIP.flaggedFraction)
-    shortfalls.push(`flagged ${(flaggedFrac * 100).toFixed(0)}% > ${SHIP.flaggedFraction * 100}%`);
+  if (flaggedFrac > bar.flaggedFraction)
+    shortfalls.push(`flagged ${(flaggedFrac * 100).toFixed(0)}% > ${bar.flaggedFraction * 100}%`);
+  summary.shipBar = bar;
   summary.shipShortfalls = shortfalls;
   summary.ship = shortfalls.length === 0;
 
@@ -172,6 +176,14 @@ for (const id of targets) {
     }
     if (flags.length) console.log(`  → ${flags.length}/${frames.length} beats flagged`);
     if (shipGate) {
+      // A moved floor is ALWAYS printed, pass or fail. A threshold that a
+      // journey quietly lowered and nothing ever mentions again is not a bar,
+      // it is a disabled check — and the whole value of this gate is that
+      // "done" is an exit code nobody had to be trusted about.
+      if (bar.overridden?.length) {
+        console.log(`  → ship bar overridden by ${id}/gate.js: ${bar.overridden.join(' · ')}`);
+        if (bar.reason) console.log(`     reason: ${bar.reason}`);
+      }
       console.log(
         shortfalls.length
           ? `  → SHIP BAR NOT MET: ${shortfalls.join(' · ')}`
